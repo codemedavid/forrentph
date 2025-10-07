@@ -41,13 +41,14 @@ function transformCostume(dbCostume: DbCostume) {
 // GET - Fetch costume by slug
 export async function GET(
   request: NextRequest,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    const { slug } = await params;
     const { data, error } = await supabase
       .from('costumes')
       .select('*, categories(*)')
-      .eq('slug', params.slug)
+      .eq('slug', slug)
       .single();
 
     if (error) {

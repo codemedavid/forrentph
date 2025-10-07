@@ -4,13 +4,14 @@ import { supabase } from '@/lib/supabase';
 // GET - Fetch single booking
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { data, error } = await supabase
       .from('bookings')
       .select('*, costumes(*)')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) throw error;
@@ -28,9 +29,10 @@ export async function GET(
 // PATCH - Update booking (partial update for status, messenger_opened, etc.)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
 
     // Build update object with only provided fields
@@ -41,13 +43,13 @@ export async function PATCH(
     const { data, error } = await supabase
       .from('bookings')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
 
-    console.log(`✅ Booking ${params.id} updated:`, updateData);
+    console.log(`✅ Booking ${id} updated:`, updateData);
 
     return NextResponse.json({ booking: data }, { status: 200 });
   } catch (error) {
@@ -62,9 +64,10 @@ export async function PATCH(
 // PUT - Update booking (full update)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
 
     const { data, error } = await supabase
@@ -80,7 +83,7 @@ export async function PUT(
         status: body.status,
         special_requests: body.specialRequests
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -99,13 +102,14 @@ export async function PUT(
 // DELETE - Delete booking
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { error } = await supabase
       .from('bookings')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (error) throw error;
 

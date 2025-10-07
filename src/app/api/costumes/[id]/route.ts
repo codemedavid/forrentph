@@ -41,13 +41,14 @@ function transformCostume(dbCostume: DbCostume) {
 // GET - Fetch single costume
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { data, error } = await supabase
       .from('costumes')
       .select('*, categories(*)')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) throw error;
@@ -67,9 +68,10 @@ export async function GET(
 // PUT - Update costume
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
 
     const { data, error } = await supabase
@@ -89,7 +91,7 @@ export async function PUT(
         is_available: body.isAvailable,
         slug: body.slug
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -110,13 +112,14 @@ export async function PUT(
 // DELETE - Delete costume
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { error } = await supabase
       .from('costumes')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (error) throw error;
 
