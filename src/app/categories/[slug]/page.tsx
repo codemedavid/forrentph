@@ -129,7 +129,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
               <div className="text-gray-500 mb-4">
                 <span className="text-6xl mb-4 block">🎭</span>
                 <h3 className="text-lg font-medium mb-2">No costumes in this category yet</h3>
-                <p>We're working on adding more costumes to this category. Check back soon!</p>
+                <p>We&apos;re working on adding more costumes to this category. Check back soon!</p>
               </div>
               <Button asChild>
                 <Link href="/costumes">Browse All Costumes</Link>

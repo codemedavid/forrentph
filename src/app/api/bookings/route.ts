@@ -20,12 +20,21 @@ async function expirePendingBookings() {
   }
 }
 
+interface BookingRecord {
+  id: string;
+  costume_id: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  created_at: string;
+}
+
 // Helper function to check if costume is blocked
 async function isCostumeBlocked(
   costumeId: string,
   startDate: string,
   endDate: string
-): Promise<{ blocked: boolean; blockingBooking?: any }> {
+): Promise<{ blocked: boolean; blockingBooking?: BookingRecord }> {
   const now = new Date().toISOString();
 
   // Check for confirmed bookings or active pending blocks
@@ -168,12 +177,13 @@ export async function POST(request: NextRequest) {
       bookingReference,
       message: 'Costume reserved for 10 minutes'
     }, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error creating booking:', error);
     return NextResponse.json(
       { 
         error: 'Failed to create booking',
-        details: error.message || 'Unknown error'
+        details: errorMessage
       },
       { status: 500 }
     );

@@ -34,7 +34,7 @@ export async function PATCH(
     const body = await request.json();
 
     // Build update object with only provided fields
-    const updateData: any = {};
+    const updateData: { status?: string; messenger_opened?: boolean } = {};
     if (body.status !== undefined) updateData.status = body.status;
     if (body.messenger_opened !== undefined) updateData.messenger_opened = body.messenger_opened;
 

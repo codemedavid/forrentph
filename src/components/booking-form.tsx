@@ -12,7 +12,16 @@ interface BookingFormProps {
   startDate: Date;
   endDate: Date;
   totalPrice: number;
-  onBookingComplete: (bookingData: any) => void;
+  onBookingComplete: (bookingData: {
+    id: string;
+    costumeId: string;
+    startDate: string;
+    endDate: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    bookingReference: string;
+  }) => void;
 }
 
 export function BookingForm({ costume, startDate, endDate, totalPrice, onBookingComplete }: BookingFormProps) {
@@ -126,7 +135,7 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Redirecting to Messenger!</h2>
           <p className="text-gray-600 mb-6">
-            Your booking details have been prepared and you're being redirected to Messenger to complete your rental request.
+            Your booking details have been prepared and you&apos;re being redirected to Messenger to complete your rental request.
           </p>
           <div className="space-y-2 text-sm text-gray-600">
             <p><strong>Booking ID:</strong> #{Date.now().toString().slice(-6)}</p>
@@ -148,7 +157,7 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
             Send Booking via Messenger
           </CardTitle>
           <CardDescription>
-            Fill in your details and we'll send your booking request directly to our Messenger for quick processing.
+            Fill in your details and we&apos;ll send your booking request directly to our Messenger for quick processing.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -261,7 +270,7 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
                 Your booking details will be sent directly to our Facebook Messenger page where we can quickly confirm availability and provide payment instructions.
               </p>
               <p className="text-xs text-green-700">
-                You'll be redirected to Messenger after clicking "Send to Messenger"
+                You&apos;ll be redirected to Messenger after clicking &quot;Send to Messenger&quot;
               </p>
             </div>
 
