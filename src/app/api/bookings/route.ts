@@ -27,6 +27,7 @@ interface BookingRecord {
   end_date: string;
   status: string;
   created_at: string;
+  blocked_until: string;
 }
 
 // Helper function to check if costume is blocked
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
       body.endDate
     );
 
-    if (blocked) {
+    if (blocked && blockingBooking) {
       const isConfirmed = blockingBooking.status === 'confirmed';
       const message = isConfirmed
         ? 'This costume is already booked for the selected dates.'
