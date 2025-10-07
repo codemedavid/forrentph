@@ -18,6 +18,7 @@ export default function BookingPage() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [totalPrice, setTotalPrice] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const costumeId = searchParams.get('costumeId');
@@ -25,7 +26,34 @@ export default function BookingPage() {
     const endDateStr = searchParams.get('endDate');
 
     if (costumeId && startDateStr && endDateStr) {
-      const foundCostume = costumes.find(c => c.id === costumeId);
+      fetchCostume(costumeId, startDateStr, endDateStr);
+    } else {
+      // Missing parameters, redirect to costumes page
+      console.warn('❌ Missing booking parameters');
+      router.push('/costumes');
+    }
+  }, [searchParams, router]);
+
+  const fetchCostume = async (costumeId: string, startDateStr: string, endDateStr: string) => {
+    try {
+      setIsLoading(true);
+      console.log('🔄 Fetching costume for booking:', costumeId);
+
+      // Try to fetch from API first
+      const response = await fetch(`/api/costumes/${costumeId}`);
+      
+      let foundCostume: Costume | null = null;
+
+      if (response.ok) {
+        const data = await response.json();
+        foundCostume = data.costume;
+        console.log('✅ Costume loaded from database');
+      } else {
+        console.warn('⚠️ Costume not in database, checking mock data');
+        // Fallback to mock data
+        foundCostume = costumes.find(c => c.id === costumeId) || null;
+      }
+
       const start = new Date(startDateStr);
       const end = new Date(endDateStr);
 
@@ -34,32 +62,50 @@ export default function BookingPage() {
         setStartDate(start);
         setEndDate(end);
         setTotalPrice(calculatePrice(foundCostume, start, end));
+        console.log('✅ Booking page ready');
       } else {
         // Invalid parameters, redirect to costumes page
+        console.error('❌ Invalid costume or dates');
         router.push('/costumes');
       }
-    } else {
-      // Missing parameters, redirect to costumes page
-      router.push('/costumes');
+    } catch (error) {
+      console.error('❌ Error fetching costume:', error);
+      // Try mock data as last resort
+      const foundCostume = costumes.find(c => c.id === costumeId);
+      if (foundCostume) {
+        const start = new Date(startDateStr);
+        const end = new Date(endDateStr);
+        setCostume(foundCostume);
+        setStartDate(start);
+        setEndDate(end);
+        setTotalPrice(calculatePrice(foundCostume, start, end));
+      } else {
+        router.push('/costumes');
+      }
+    } finally {
+      setIsLoading(false);
     }
-  }, [searchParams, router]);
+  };
 
   const handleBookingComplete = (bookingData: { 
+    id: string;
     costumeId: string;
     startDate: string;
     endDate: string;
     customerName: string;
     customerEmail: string;
     customerPhone: string;
+    bookingReference: string;
   }) => {
-    // In a real app, you would save this to a database
-    console.log('Booking completed:', bookingData);
+    console.log('✅ Booking completed:', bookingData);
+    console.log('📱 Customer has been redirected to Messenger');
+    console.log(`🔒 Booking reference: ${bookingData.bookingReference}`);
     
     // You could redirect to a success page or show a success message
-    // router.push(`/booking-success?id=${bookingData.id}`);
+    // router.push(`/booking-success?reference=${bookingData.bookingReference}`);
   };
 
-  if (!costume || !startDate || !endDate) {
+  if (isLoading || !costume || !startDate || !endDate) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
