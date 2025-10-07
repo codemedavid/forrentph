@@ -37,43 +37,82 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Generate the booking message for Messenger
-    const bookingMessage = generateMessengerBookingMessage(
-      costume,
-      formData.customerName,
-      formData.customerEmail,
-      formData.customerPhone,
-      startDate,
-      endDate,
-      totalPrice,
-      formData.specialRequests
-    );
+    try {
+      // Step 1: Create booking in database with 10-minute block
+      console.log('🔒 Creating temporary reservation...');
+      
+      const bookingData = {
+        costumeId: costume.id,
+        customerName: formData.customerName,
+        customerEmail: formData.customerEmail,
+        customerPhone: formData.customerPhone,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        totalPrice: totalPrice,
+        specialRequests: formData.specialRequests,
+        status: 'pending'
+      };
 
-    // Create the Messenger URL with pre-filled message
-    const messengerURL = createMessengerURL(bookingMessage);
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bookingData),
+      });
 
-    // Simulate brief processing time
-    await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create booking');
+      }
 
-    // Redirect to Messenger
-    window.open(messengerURL, '_blank');
+      const { booking, bookingReference } = await response.json();
+      console.log(`✅ Booking created: ${bookingReference}`);
+      console.log(`⏰ Reserved for 10 minutes until: ${new Date(booking.blocked_until).toLocaleTimeString()}`);
 
-    setIsSubmitting(false);
-    setIsComplete(true);
-    
-    // Call the completion handler with booking data
-    const bookingData = {
-      id: Date.now().toString(),
-      costumeId: costume.id,
-      ...formData,
-      startDate,
-      endDate,
-      totalPrice,
-      status: 'pending' as const,
-      createdAt: new Date()
-    };
-    
-    onBookingComplete(bookingData);
+      // Step 2: Generate the booking message for Messenger with reference
+      const bookingMessage = generateMessengerBookingMessage(
+        costume,
+        formData.customerName,
+        formData.customerEmail,
+        formData.customerPhone,
+        startDate,
+        endDate,
+        totalPrice,
+        formData.specialRequests,
+        bookingReference
+      );
+
+      // Step 3: Create the Messenger URL with pre-filled message
+      const messengerURL = createMessengerURL(bookingMessage);
+
+      // Step 4: Mark that messenger is about to be opened
+      await fetch(`/api/bookings/${booking.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messenger_opened: true }),
+      });
+
+      // Step 5: Open Messenger
+      console.log('📱 Opening Messenger...');
+      window.open(messengerURL, '_blank');
+
+      setIsSubmitting(false);
+      setIsComplete(true);
+      
+      // Call the completion handler
+      onBookingComplete({
+        ...booking,
+        bookingReference
+      });
+
+    } catch (error) {
+      console.error('❌ Booking failed:', error);
+      alert(`Booking failed: ${error instanceof Error ? error.message : 'Please try again'}`);
+      setIsSubmitting(false);
+    }
   };
 
   const durationLabel = getDurationLabel(startDate, endDate);

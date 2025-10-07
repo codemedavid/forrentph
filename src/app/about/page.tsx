@@ -30,11 +30,11 @@ export default function AboutPage() {
                 <p>
                   CostumeRental was founded in 2015 with a simple mission: to make every event 
                   unforgettable through amazing costumes. What started as a small local business 
-                  has grown into the region's premier costume rental service.
+                  has grown into the region&apos;s premier costume rental service.
                 </p>
                 <p>
                   We believe that the right costume can transform any event from ordinary to 
-                  extraordinary. Whether it's a birthday party, corporate event, Halloween 
+                  extraordinary. Whether it&apos;s a birthday party, corporate event, Halloween 
                   celebration, or themed gathering, we have the perfect costume to make your 
                   event stand out.
                 </p>
@@ -156,7 +156,7 @@ export default function AboutPage() {
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">Why Choose Us?</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Here's what sets us apart from the competition
+              Here&apos;s what sets us apart from the competition
             </p>
           </div>
           

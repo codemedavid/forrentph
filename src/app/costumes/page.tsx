@@ -1,21 +1,85 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { costumes, categories } from '@/data/costumes';
+import { costumes as mockCostumes, categories as mockCategories } from '@/data/costumes';
 import { Search, Filter, Star, Calendar, DollarSign } from 'lucide-react';
-import { Costume } from '@/types';
+import { Costume, Category } from '@/types';
 
 export default function CostumesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 100]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'popularity'>('popularity');
+  const [costumes, setCostumes] = useState<Costume[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch data from API
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        
+        // Fetch costumes
+        console.log('🔄 Fetching costumes from API...');
+        const costumesResponse = await fetch('/api/costumes');
+        
+        if (costumesResponse.ok) {
+          const costumesData = await costumesResponse.json();
+          const fetchedCostumes = costumesData.costumes || [];
+          console.log(`✅ Fetched ${fetchedCostumes.length} costumes from database`);
+          setCostumes(fetchedCostumes);
+          
+          // If no costumes in database, use mock data as fallback
+          if (fetchedCostumes.length === 0) {
+            console.warn('⚠️ No costumes found in database, using mock data');
+            setCostumes(mockCostumes);
+          }
+        } else {
+          console.warn('⚠️ API request failed, using mock data');
+          setCostumes(mockCostumes);
+        }
+
+        // Fetch categories
+        console.log('🔄 Fetching categories from API...');
+        const categoriesResponse = await fetch('/api/categories');
+        
+        if (categoriesResponse.ok) {
+          const categoriesData = await categoriesResponse.json();
+          const fetchedCategories = categoriesData.categories || [];
+          console.log(`✅ Fetched ${fetchedCategories.length} categories from database`);
+          setCategories(fetchedCategories);
+          
+          // If no categories in database, use mock data as fallback
+          if (fetchedCategories.length === 0) {
+            console.warn('⚠️ No categories found in database, using mock data');
+            setCategories(mockCategories);
+          }
+        } else {
+          console.warn('⚠️ API request failed, using mock data');
+          setCategories(mockCategories);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching data:', error);
+        console.warn('📋 Using mock data as fallback');
+        setCostumes(mockCostumes);
+        setCategories(mockCategories);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
 
   const filteredCostumes = useMemo(() => {
-    let filtered = costumes.filter(costume => {
+    console.log(`🔍 Filtering ${costumes.length} costumes...`);
+    console.log(`   Search: "${searchTerm}", Category: ${selectedCategory}, Price: ${priceRange[0]}-${priceRange[1]}`);
+    
+    const filtered = costumes.filter(costume => {
       const matchesSearch = costume.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            costume.description.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'all' || costume.categoryId === selectedCategory;
@@ -23,6 +87,8 @@ export default function CostumesPage() {
       
       return matchesSearch && matchesCategory && matchesPrice;
     });
+
+    console.log(`   ✅ ${filtered.length} costumes match filters`);
 
     // Sort costumes
     filtered.sort((a, b) => {
@@ -38,9 +104,20 @@ export default function CostumesPage() {
     });
 
     return filtered;
-  }, [searchTerm, selectedCategory, priceRange, sortBy]);
+  }, [costumes, searchTerm, selectedCategory, priceRange, sortBy]);
 
   const selectedCategoryName = categories.find(cat => cat.id === selectedCategory)?.name || 'All Categories';
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading costumes...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -201,7 +278,7 @@ export default function CostumesPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredCostumes.map((costume) => (
-                  <CostumeCard key={costume.id} costume={costume} />
+                  <CostumeCard key={costume.id} costume={costume} categories={categories} />
                 ))}
               </div>
             )}
@@ -212,8 +289,8 @@ export default function CostumesPage() {
   );
 }
 
-function CostumeCard({ costume }: { costume: Costume }) {
-  const category = categories.find(cat => cat.id === costume.categoryId);
+function CostumeCard({ costume, categories }: { costume: Costume; categories: Category[] }) {
+  const category = categories.find((cat: Category) => cat.id === costume.categoryId);
 
   return (
     <Card className="group hover:shadow-lg transition-all duration-300">

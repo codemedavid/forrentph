@@ -5,10 +5,10 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { costumes, categories, bookings, pricingTiers } from '@/data/costumes';
+import { costumes as mockCostumes, categories as mockCategories, bookings, pricingTiers } from '@/data/costumes';
 import { Calendar, Clock, Star, Users, CheckCircle, XCircle, DollarSign } from 'lucide-react';
 import { formatDisplayDate, calculatePrice, getDurationLabel, checkAvailability, getAvailableDates } from '@/lib/utils';
-import { Costume, DateAvailability } from '@/types';
+import { Costume, Category, DateAvailability } from '@/types';
 
 export default function CostumeDetailPage() {
   const params = useParams();
@@ -19,16 +19,99 @@ export default function CostumeDetailPage() {
   const [selectedDuration, setSelectedDuration] = useState<string>('1d');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availability, setAvailability] = useState<DateAvailability[]>([]);
+  const [costume, setCostume] = useState<Costume | null>(null);
+  const [category, setCategory] = useState<Category | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
 
-  const costume = costumes.find(c => c.slug === slug);
-  const category = costume ? categories.find(cat => cat.id === costume.categoryId) : null;
+  // Fetch costume from API
+  useEffect(() => {
+    fetchCostume();
+  }, [slug]);
+
+  const fetchCostume = async () => {
+    setIsLoading(true);
+    try {
+      console.log('🔄 Fetching costume with slug:', slug);
+      
+      // Try to fetch from API first using slug-specific endpoint
+      const response = await fetch(`/api/costumes/slug/${slug}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Costume found:', data.costume);
+        setCostume(data.costume);
+        
+        // Fetch category
+        if (data.costume.categoryId) {
+          const categoryResponse = await fetch('/api/categories');
+          if (categoryResponse.ok) {
+            const categoryData = await categoryResponse.json();
+            const categories = categoryData.categories || [];
+            const foundCategory = categories.find((cat: Category) => cat.id === data.costume.categoryId);
+            setCategory(foundCategory || null);
+          }
+        }
+      } else if (response.status === 404) {
+        console.log('⚠️ Costume not found in database, trying mock data');
+        // Fallback to mock data
+        const mockCostume = mockCostumes.find(c => c.slug === slug);
+        if (mockCostume) {
+          setCostume(mockCostume);
+          const mockCategory = mockCategories.find(cat => cat.id === mockCostume.categoryId);
+          setCategory(mockCategory || null);
+        }
+      } else {
+        throw new Error('Failed to fetch costume');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching costume:', error);
+      // Fallback to mock data
+      const mockCostume = mockCostumes.find(c => c.slug === slug);
+      if (mockCostume) {
+        console.log('Using mock data for:', slug);
+        setCostume(mockCostume);
+        const mockCategory = mockCategories.find(cat => cat.id === mockCostume.categoryId);
+        setCategory(mockCategory || null);
+      } else {
+        console.error('Costume not found in mock data either');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (costume) {
       const availableDates = getAvailableDates(costume.id, bookings, 3);
       setAvailability(availableDates);
+      
+      // Fetch blocked dates from Supabase
+      fetchBlockedDates();
     }
-  }, [costume]);
+  }, [costume, currentMonth]);
+
+  const fetchBlockedDates = async () => {
+    if (!costume) return;
+    
+    try {
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+      
+      const response = await fetch(
+        `/api/availability?costumeId=${costume.id}&year=${year}&month=${month}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        const blocked = data.blockedDates?.map((bd: { blocked_date: string }) => bd.blocked_date) || [];
+        setBlockedDates(blocked);
+      }
+    } catch (error) {
+      console.error('Error fetching blocked dates:', error);
+      // Continue without blocked dates if API fails
+    }
+  };
 
   useEffect(() => {
     if (selectedStartDate && selectedDuration) {
@@ -54,12 +137,23 @@ export default function CostumeDetailPage() {
     }
   }, [selectedStartDate, selectedDuration]);
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading costume details...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!costume) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Costume Not Found</h1>
-          <p className="text-gray-600 mb-8">The costume you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mb-8">The costume you&apos;re looking for doesn&apos;t exist.</p>
           <Button asChild>
             <Link href="/costumes">Browse All Costumes</Link>
           </Button>
@@ -70,7 +164,26 @@ export default function CostumeDetailPage() {
 
   const totalPrice = selectedStartDate && selectedEndDate ? calculatePrice(costume, selectedStartDate, selectedEndDate) : 0;
   const durationLabel = selectedStartDate && selectedEndDate ? getDurationLabel(selectedStartDate, selectedEndDate) : '';
-  const isAvailable = selectedStartDate && selectedEndDate ? checkAvailability(costume.id, selectedStartDate, selectedEndDate, bookings).isAvailable : false;
+  
+  // Check both booking availability and admin blocks
+  const isAvailable = selectedStartDate && selectedEndDate ? (() => {
+    // First check bookings
+    const bookingAvailable = checkAvailability(costume.id, selectedStartDate, selectedEndDate, bookings).isAvailable;
+    if (!bookingAvailable) return false;
+    
+    // Then check admin blocks
+    const startDate = new Date(selectedStartDate);
+    const endDate = new Date(selectedEndDate);
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      if (blockedDates.includes(dateStr)) {
+        return false;
+      }
+    }
+    
+    return true;
+  })() : false;
 
   const generateCalendarDays = () => {
     const year = currentMonth.getFullYear();
@@ -92,11 +205,12 @@ export default function CostumeDetailPage() {
       const date = new Date(year, month, day);
       const dateStr = date.toISOString().split('T')[0];
       const dayAvailability = availability.find(a => a.date === dateStr);
+      const isBlockedByAdmin = blockedDates.includes(dateStr);
       
       days.push({
         date,
         day,
-        isAvailable: dayAvailability?.isAvailable ?? true,
+        isAvailable: (dayAvailability?.isAvailable ?? true) && !isBlockedByAdmin,
         isPast: date < new Date(new Date().setHours(0, 0, 0, 0)),
         isSelected: selectedStartDate && date.toDateString() === selectedStartDate.toDateString()
       });
@@ -110,8 +224,10 @@ export default function CostumeDetailPage() {
     
     const dateStr = date.toISOString().split('T')[0];
     const dayAvailability = availability.find(a => a.date === dateStr);
+    const isBlockedByAdmin = blockedDates.includes(dateStr);
     
-    if (dayAvailability?.isAvailable) {
+    // Only allow selection if available AND not blocked by admin
+    if (dayAvailability?.isAvailable && !isBlockedByAdmin) {
       setSelectedStartDate(date);
     }
   };

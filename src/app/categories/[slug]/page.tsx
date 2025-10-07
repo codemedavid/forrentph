@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { categories, costumes } from '@/data/costumes';
+import { categories as mockCategories, costumes as mockCostumes } from '@/data/costumes';
 import { ArrowLeft, Star, Calendar, DollarSign } from 'lucide-react';
+import { Costume, Category } from '@/types';
 
 interface CategoryPageProps {
   params: {
@@ -11,7 +12,80 @@ interface CategoryPageProps {
   };
 }
 
-export default function CategoryPage({ params }: CategoryPageProps) {
+async function fetchCategories(): Promise<Category[]> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'http://localhost:3001' : ''}/api/categories`, {
+      cache: 'no-store'
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.categories || mockCategories;
+    }
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+  }
+  return mockCategories;
+}
+
+async function fetchCostumes(): Promise<Costume[]> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'http://localhost:3001' : ''}/api/costumes`, {
+      cache: 'no-store'
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const dbCostumes = data.costumes || [];
+      // Transform database format to app format
+      return dbCostumes.map((c: {
+        id: string;
+        name: string;
+        description: string;
+        category_id?: string;
+        categoryId?: string;
+        images: string[];
+        price_per_day?: number;
+        pricePerDay?: number;
+        price_per_12_hours?: number;
+        pricePer12Hours?: number;
+        price_per_week?: number;
+        pricePerWeek?: number;
+        size: string;
+        difficulty: string;
+        setup_time?: number;
+        setupTime?: number;
+        features: string[];
+        is_available?: boolean;
+        isAvailable?: boolean;
+        slug: string;
+      }) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        categoryId: c.category_id || c.categoryId,
+        images: c.images || [],
+        pricePerDay: Number(c.price_per_day || c.pricePerDay),
+        pricePer12Hours: Number(c.price_per_12_hours || c.pricePer12Hours),
+        pricePerWeek: Number(c.price_per_week || c.pricePerWeek),
+        size: c.size,
+        difficulty: c.difficulty,
+        setupTime: Number(c.setup_time || c.setupTime),
+        features: c.features || [],
+        isAvailable: c.is_available !== undefined ? c.is_available : c.isAvailable,
+        slug: c.slug
+      }));
+    }
+  } catch (error) {
+    console.error('Error fetching costumes:', error);
+  }
+  return mockCostumes;
+}
+
+export default async function CategoryPage({ params }: CategoryPageProps) {
+  const [categories, costumes] = await Promise.all([
+    fetchCategories(),
+    fetchCostumes()
+  ]);
+  
   const category = categories.find(cat => cat.slug === params.slug);
   
   if (!category) {
@@ -39,7 +113,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
               {category.name}
             </h1>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-              {category.description}
+              {category.description || ''}
             </p>
             <div className="inline-flex items-center bg-primary/10 text-primary px-4 py-2 rounded-full">
               <span className="font-medium">{categoryCostumes.length} costumes available</span>

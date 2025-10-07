@@ -14,7 +14,7 @@ export default function ContactPage() {
             </h1>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Have questions about our costumes or need help with your booking? 
-              We're here to help make your event perfect.
+              We&apos;re here to help make your event perfect.
             </p>
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function ContactPage() {
                 </div>
                 
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-2">What if the costume doesn't fit?</h4>
+                  <h4 className="font-medium text-gray-900 mb-2">What if the costume doesn&apos;t fit?</h4>
                   <p className="text-gray-600 text-sm">
                     We provide detailed size charts and are happy to help you find the perfect fit. Exchanges are available if needed.
                   </p>
@@ -130,7 +130,7 @@ export default function ContactPage() {
                   Send us a Message
                 </CardTitle>
                 <CardDescription>
-                  Fill out the form below and we'll get back to you as soon as possible.
+                  Fill out the form below and we&apos;ll get back to you as soon as possible.
                 </CardDescription>
               </CardHeader>
               <CardContent>

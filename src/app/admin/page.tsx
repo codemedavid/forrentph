@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,13 +19,62 @@ import {
   Filter,
   Download
 } from 'lucide-react';
-import { costumes, bookings } from '@/data/costumes';
+import { costumes as mockCostumes, bookings as mockBookings } from '@/data/costumes';
 import { formatDisplayDate } from '@/lib/utils';
+import { OrderDetailModal } from '@/components/admin/order-detail-modal';
+import { CostumeFormModal } from '@/components/admin/costume-form-modal';
+import { AdminLayout } from '@/components/admin/admin-layout';
+import { Costume, Booking } from '@/types';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'inventory' | 'analytics'>('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedOrder, setSelectedOrder] = useState<Booking | null>(null);
+  const [selectedCostume, setSelectedCostume] = useState<Costume | null>(null);
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isCostumeModalOpen, setIsCostumeModalOpen] = useState(false);
+  const [costumes, setCostumes] = useState<Costume[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch data from Supabase on mount
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        
+        // Fetch costumes
+        const costumesResponse = await fetch('/api/costumes');
+        if (costumesResponse.ok) {
+          const costumesData = await costumesResponse.json();
+          setCostumes(costumesData.costumes || []);
+        } else {
+          console.warn('Failed to fetch costumes, using mock data');
+          setCostumes(mockCostumes);
+        }
+
+        // Fetch bookings
+        const bookingsResponse = await fetch('/api/bookings');
+        if (bookingsResponse.ok) {
+          const bookingsData = await bookingsResponse.json();
+          setBookings(bookingsData.bookings || []);
+        } else {
+          console.warn('Failed to fetch bookings, using mock data');
+          setBookings(mockBookings);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        // Fallback to mock data
+        setCostumes(mockCostumes);
+        setBookings(mockBookings);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
 
   // Calculate dashboard stats
   const totalOrders = bookings.length;
@@ -61,31 +110,106 @@ export default function AdminDashboard() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-gray-600 mt-1">Manage your costume rental business</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export Data
-              </Button>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Costume
-              </Button>
-            </div>
+  const handleOrderClick = (booking: Booking) => {
+    setSelectedOrder(booking);
+    setIsOrderModalOpen(true);
+  };
+
+  const handleCostumeClick = (costume: Costume) => {
+    setSelectedCostume(costume);
+    setIsCostumeModalOpen(true);
+  };
+
+  const handleAddCostume = () => {
+    setSelectedCostume(null);
+    setIsCostumeModalOpen(true);
+  };
+
+  const handleOrderStatusUpdate = async (bookingId: string, newStatus: Booking['status']) => {
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update order status');
+      }
+
+      // Refresh the page to show updated data
+      window.location.reload();
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Failed to update order status. Please try again.');
+    }
+  };
+
+  const handleCostumeSave = async (costumeData: Omit<Costume, 'id'>) => {
+    try {
+      const url = selectedCostume 
+        ? `/api/costumes/${selectedCostume.id}` 
+        : '/api/costumes';
+      
+      const method = selectedCostume ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(costumeData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save costume');
+      }
+
+      // Close modal and refresh the page to show updated data
+      setIsCostumeModalOpen(false);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error saving costume:', error);
+      alert(`Failed to save costume: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div className="p-6 flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading dashboard data...</p>
           </div>
         </div>
-      </div>
+      </AdminLayout>
+    );
+  }
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  return (
+    <AdminLayout>
+      <div className="p-6">
+        {/* Header Actions */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
+            <p className="text-gray-600 mt-1">Manage your costume rental business</p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export Data
+            </Button>
+            <Button size="sm" onClick={handleAddCostume}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Costume
+            </Button>
+          </div>
+        </div>
         {/* Navigation Tabs */}
         <div className="mb-8">
           <nav className="flex space-x-8">
@@ -97,7 +221,7 @@ export default function AdminDashboard() {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as 'overview' | 'orders' | 'inventory' | 'analytics')}
                 className={`flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab.id
                     ? 'border-primary text-primary'
@@ -296,7 +420,11 @@ export default function AdminDashboard() {
                             </td>
                             <td className="py-3 px-4">
                               <div className="flex items-center space-x-2">
-                                <Button variant="ghost" size="sm">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleOrderClick(booking)}
+                                >
                                   <Eye className="h-4 w-4" />
                                 </Button>
                                 <Button variant="ghost" size="sm">
@@ -328,7 +456,7 @@ export default function AdminDashboard() {
                     <CardTitle>Costume Inventory</CardTitle>
                     <CardDescription>Manage your costume collection</CardDescription>
                   </div>
-                  <Button>
+                  <Button onClick={handleAddCostume}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add New Costume
                   </Button>
@@ -367,14 +495,29 @@ export default function AdminDashboard() {
                             <span className="font-medium text-primary">₱{costume.pricePerDay}</span>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="outline" size="sm" className="flex-1">
-                            <Edit className="h-4 w-4 mr-1" />
-                            Edit
+                        <div className="flex flex-col space-y-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => window.location.href = `/admin/costumes/${costume.id}`}
+                          >
+                            <Calendar className="h-4 w-4 mr-1" />
+                            Manage Availability
                           </Button>
-                          <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center space-x-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="flex-1"
+                              onClick={() => handleCostumeClick(costume)}
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              Edit
+                            </Button>
+                            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -460,6 +603,30 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
-    </div>
+
+      {/* Modals */}
+      {selectedOrder && (
+        <OrderDetailModal
+          booking={selectedOrder}
+          costume={costumes.find(c => c.id === selectedOrder.costumeId)!}
+          isOpen={isOrderModalOpen}
+          onClose={() => {
+            setIsOrderModalOpen(false);
+            setSelectedOrder(null);
+          }}
+          onStatusUpdate={handleOrderStatusUpdate}
+        />
+      )}
+
+      <CostumeFormModal
+        costume={selectedCostume || undefined}
+        isOpen={isCostumeModalOpen}
+        onClose={() => {
+          setIsCostumeModalOpen(false);
+          setSelectedCostume(null);
+        }}
+        onSave={handleCostumeSave}
+      />
+      </AdminLayout>
   );
 }

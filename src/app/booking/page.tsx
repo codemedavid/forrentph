@@ -44,7 +44,14 @@ export default function BookingPage() {
     }
   }, [searchParams, router]);
 
-  const handleBookingComplete = (bookingData: any) => {
+  const handleBookingComplete = (bookingData: { 
+    costumeId: string;
+    startDate: string;
+    endDate: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+  }) => {
     // In a real app, you would save this to a database
     console.log('Booking completed:', bookingData);
     

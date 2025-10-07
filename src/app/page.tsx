@@ -2,12 +2,122 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { categories, costumes } from '@/data/costumes';
+import { categories as mockCategories, costumes as mockCostumes } from '@/data/costumes';
 import { ArrowRight, Star, Clock, Users, Sparkles } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { Category, Costume } from '@/types';
 
-export default function Home() {
+interface DbCostume {
+  id: string;
+  name: string;
+  description: string;
+  category_id: string;
+  images: string[];
+  price_per_day: number;
+  price_per_12_hours: number;
+  price_per_week: number;
+  size: string;
+  difficulty: string;
+  setup_time: number;
+  features: string[];
+  is_available: boolean;
+  slug: string;
+}
+
+// Transform database snake_case to frontend camelCase
+function transformCostume(dbCostume: DbCostume): Costume {
+  return {
+    id: dbCostume.id,
+    name: dbCostume.name,
+    description: dbCostume.description,
+    categoryId: dbCostume.category_id,
+    images: dbCostume.images || [],
+    pricePerDay: Number(dbCostume.price_per_day),
+    pricePer12Hours: Number(dbCostume.price_per_12_hours),
+    pricePerWeek: Number(dbCostume.price_per_week),
+    size: dbCostume.size,
+    difficulty: dbCostume.difficulty,
+    setupTime: dbCostume.setup_time,
+    features: dbCostume.features || [],
+    isAvailable: dbCostume.is_available,
+    slug: dbCostume.slug,
+  };
+}
+
+async function fetchCategories(): Promise<Category[]> {
+  try {
+    // Check if Supabase is configured
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('⚠️ Supabase not configured. Using mock data. See SETUP_SUPABASE.md for instructions.');
+      return mockCategories;
+    }
+
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('❌ Error fetching categories from Supabase:', error.message || error);
+      console.warn('📋 Falling back to mock data. Check your database setup in Supabase.');
+      return mockCategories;
+    }
+
+    return data || mockCategories;
+  } catch (error) {
+    console.error('❌ Supabase connection failed:', error);
+    console.warn('📋 Using mock data. Check SETUP_SUPABASE.md for configuration instructions.');
+    return mockCategories;
+  }
+}
+
+async function fetchCostumes(): Promise<Costume[]> {
+  try {
+    // Check if Supabase is configured
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('⚠️ Supabase not configured. Using mock data. See SETUP_SUPABASE.md for instructions.');
+      return mockCostumes;
+    }
+
+    const { data, error } = await supabase
+      .from('costumes')
+      .select('*')
+      .eq('is_available', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Error fetching costumes from Supabase:', error.message || error);
+      console.warn('📋 Falling back to mock data. Check your database setup in Supabase.');
+      return mockCostumes;
+    }
+
+    return data?.map(transformCostume) || mockCostumes;
+  } catch (error) {
+    console.error('❌ Supabase connection failed:', error);
+    console.warn('📋 Using mock data. Check SETUP_SUPABASE.md for configuration instructions.');
+    return mockCostumes;
+  }
+}
+
+export default async function Home() {
+  const [categories, costumes] = await Promise.all([
+    fetchCategories(),
+    fetchCostumes()
+  ]);
+
   const featuredCostumes = costumes.slice(0, 6);
-  const inflatableCostumes = costumes.filter(costume => costume.categoryId === '1');
+  
+  // Find the inflatable category by slug instead of hardcoded ID
+  const inflatableCategory = categories.find(cat => cat.slug === 'inflatable-costumes');
+  const inflatableCostumes = inflatableCategory 
+    ? costumes.filter(costume => costume.categoryId === inflatableCategory.id)
+    : [];
 
   return (
     <div className="min-h-screen">
@@ -57,7 +167,49 @@ export default function Home() {
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {/* Mobile: Horizontal Scrollable Grid */}
+          <div className="block md:hidden">
+            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+              {categories.map((category) => (
+                <div key={category.id} className="flex-shrink-0 w-64">
+                  <Card className="group hover:shadow-xl transition-all duration-300 cursor-pointer border-2 hover:border-primary/20 h-full">
+                    <Link href={`/categories/${category.slug}`}>
+                      <CardHeader className="p-0">
+                        <div className="aspect-video bg-gradient-to-br from-primary/10 to-accent/5 rounded-t-lg flex items-center justify-center relative overflow-hidden">
+                          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center group-hover:bg-primary/20 transition-all duration-300 group-hover:scale-110">
+                            <span className="text-2xl">
+                              {category.name === 'Inflatable Costumes' ? '🎈' :
+                               category.name === 'Character Costumes' ? '🦸' :
+                               category.name === 'Animal Costumes' ? '🦁' :
+                               category.name === 'Historical Costumes' ? '🏛️' :
+                               category.name === 'Superhero Costumes' ? '🦸‍♂️' :
+                               category.name === 'Horror Costumes' ? '👻' : '🎭'}
+                            </span>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4">
+                        <CardTitle className="text-lg mb-2 group-hover:text-primary transition-colors">
+                          {category.name}
+                        </CardTitle>
+                        <CardDescription className="text-muted-foreground mb-3 text-sm line-clamp-2">
+                          {category.description}
+                        </CardDescription>
+                        <div className="flex items-center text-primary group-hover:translate-x-1 transition-transform">
+                          <span className="text-xs font-medium">Explore</span>
+                          <ArrowRight className="ml-1 h-3 w-3" />
+                        </div>
+                      </CardContent>
+                    </Link>
+                  </Card>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Desktop: Regular Grid */}
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {categories.map((category) => (
               <Card key={category.id} className="group hover:shadow-xl transition-all duration-300 cursor-pointer border-2 hover:border-primary/20">
                 <Link href={`/categories/${category.slug}`}>

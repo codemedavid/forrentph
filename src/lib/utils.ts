@@ -146,13 +146,16 @@ export function generateMessengerBookingMessage(
   startDate: Date,
   endDate: Date,
   totalPrice: number,
-  specialRequests?: string
+  specialRequests?: string,
+  bookingReference?: string
 ): string {
   const durationLabel = getDurationLabel(startDate, endDate);
+  const reference = bookingReference || `TEMP-${Date.now().toString().slice(-6)}`;
   
   const message = `🎭 COSTUME RENTAL BOOKING REQUEST
 
 📋 BOOKING DETAILS:
+• Reference: ${reference}
 • Costume: ${costume.name}
 • Duration: ${durationLabel}
 • Start Date: ${formatDisplayDate(startDate)}
@@ -170,9 +173,9 @@ ${specialRequests ? `📝 SPECIAL REQUESTS:\n${specialRequests}\n\n` : ''}💰 C
 • Setup Time: ${costume.setupTime} minutes
 • Features: ${costume.features.join(', ')}
 
-📅 BOOKING ID: #${Date.now().toString().slice(-6)}
+⏰ IMPORTANT: This costume is temporarily reserved for you for 10 minutes. Please confirm your booking to secure it!
 
-Please confirm availability and provide payment instructions. Thank you!`;
+📞 Reply with "${reference}" to confirm your booking. Thank you!`;
 
   return message;
 }
