@@ -66,7 +66,15 @@ export async function GET() {
     const transformedData = data?.map(transformCostume) || [];
     console.log(`✅ API returning ${transformedData.length} costumes`);
 
-    return NextResponse.json({ costumes: transformedData }, { status: 200 });
+    return NextResponse.json(
+      { costumes: transformedData },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, s-maxage=1800, stale-while-revalidate=3600',
+        },
+      }
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('❌ Error in GET /api/costumes:', errorMessage);

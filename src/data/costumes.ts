@@ -6,6 +6,7 @@ export const categories: Category[] = [
     name: 'Inflatable Costumes',
     description: 'Fun and eye-catching inflatable costumes perfect for parties and events',
     image: '/images/categories/inflatable.jpg',
+    icon: '🎈',
     slug: 'inflatable-costumes'
   },
   {
@@ -13,6 +14,7 @@ export const categories: Category[] = [
     name: 'Character Costumes',
     description: 'Popular character costumes from movies, TV shows, and games',
     image: '/images/categories/characters.jpg',
+    icon: '🦸',
     slug: 'character-costumes'
   },
   {
@@ -20,6 +22,7 @@ export const categories: Category[] = [
     name: 'Animal Costumes',
     description: 'Adorable and realistic animal costumes for all ages',
     image: '/images/categories/animals.jpg',
+    icon: '🦁',
     slug: 'animal-costumes'
   },
   {
@@ -27,6 +30,7 @@ export const categories: Category[] = [
     name: 'Historical Costumes',
     description: 'Period costumes from different eras and cultures',
     image: '/images/categories/historical.jpg',
+    icon: '🏛️',
     slug: 'historical-costumes'
   },
   {
@@ -34,6 +38,7 @@ export const categories: Category[] = [
     name: 'Superhero Costumes',
     description: 'Powerful superhero costumes for comic book fans',
     image: '/images/categories/superheroes.jpg',
+    icon: '🦸‍♂️',
     slug: 'superhero-costumes'
   },
   {
@@ -41,6 +46,7 @@ export const categories: Category[] = [
     name: 'Horror Costumes',
     description: 'Spooky and scary costumes for Halloween and themed events',
     image: '/images/categories/horror.jpg',
+    icon: '👻',
     slug: 'horror-costumes'
   }
 ];

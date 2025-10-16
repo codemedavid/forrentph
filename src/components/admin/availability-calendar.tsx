@@ -9,8 +9,7 @@ import {
   ChevronRight, 
   Calendar as CalendarIcon,
   X,
-  AlertCircle,
-  CheckCircle
+  AlertCircle
 } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, isPast, parseISO } from 'date-fns';
 

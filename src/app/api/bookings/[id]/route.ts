@@ -1,6 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+// Transform database snake_case to frontend camelCase
+interface DbBooking {
+  id: string;
+  costume_id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  start_date: string;
+  end_date: string;
+  total_price: number;
+  status: string;
+  special_requests?: string;
+  created_at: string;
+}
+
+function transformBooking(dbBooking: DbBooking) {
+  return {
+    id: dbBooking.id,
+    costumeId: dbBooking.costume_id,
+    customerName: dbBooking.customer_name,
+    customerEmail: dbBooking.customer_email,
+    customerPhone: dbBooking.customer_phone,
+    startDate: new Date(dbBooking.start_date),
+    endDate: new Date(dbBooking.end_date),
+    totalPrice: Number(dbBooking.total_price),
+    status: dbBooking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+    specialRequests: dbBooking.special_requests,
+    createdAt: new Date(dbBooking.created_at),
+  };
+}
+
 // GET - Fetch single booking
 export async function GET(
   request: NextRequest,
@@ -16,7 +47,9 @@ export async function GET(
 
     if (error) throw error;
 
-    return NextResponse.json({ booking: data }, { status: 200 });
+    const transformedData = transformBooking(data);
+
+    return NextResponse.json({ booking: transformedData }, { status: 200 });
   } catch (error) {
     console.error('Error fetching booking:', error);
     return NextResponse.json(
@@ -51,7 +84,9 @@ export async function PATCH(
 
     console.log(`✅ Booking ${id} updated:`, updateData);
 
-    return NextResponse.json({ booking: data }, { status: 200 });
+    const transformedData = transformBooking(data);
+
+    return NextResponse.json({ booking: transformedData }, { status: 200 });
   } catch (error) {
     console.error('Error updating booking:', error);
     return NextResponse.json(
@@ -89,7 +124,9 @@ export async function PUT(
 
     if (error) throw error;
 
-    return NextResponse.json({ booking: data }, { status: 200 });
+    const transformedData = transformBooking(data);
+
+    return NextResponse.json({ booking: transformedData }, { status: 200 });
   } catch (error) {
     console.error('Error updating booking:', error);
     return NextResponse.json(

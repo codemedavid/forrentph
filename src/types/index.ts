@@ -3,6 +3,7 @@ export interface Category {
   name: string;
   description: string;
   image: string;
+  icon: string; // Emoji or icon character
   slug: string;
 }
 
@@ -57,4 +58,78 @@ export interface CartItem {
   endDate: Date;
   duration: string;
   price: number;
+}
+
+// Site Settings Types
+export interface SiteSettings {
+  id: string;
+  key: string;
+  value: Record<string, unknown>; // JSONB value
+  category: string;
+  description?: string;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface AboutHero {
+  title: string;
+  subtitle: string;
+}
+
+export interface AboutStory {
+  title: string;
+  paragraphs: string[];
+  statsTitle: string;
+  statsSubtitle: string;
+}
+
+export interface Stat {
+  icon: string;
+  value: string;
+  label: string;
+}
+
+export interface AboutStats {
+  stats: Stat[];
+}
+
+export interface Value {
+  icon: string;
+  iconColor: string;
+  title: string;
+  description: string;
+}
+
+export interface AboutValues {
+  title: string;
+  subtitle: string;
+  values: Value[];
+}
+
+export interface Feature {
+  icon?: string;
+  title: string;
+  description: string;
+}
+
+export interface WhyChooseUs {
+  title: string;
+  subtitle: string;
+  features: Feature[];
+}
+
+export interface AboutCTA {
+  title: string;
+  description: string;
+  primaryButtonText: string;
+  primaryButtonLink: string;
+  secondaryButtonText: string;
+  secondaryButtonLink: string;
+}
+
+export interface HeaderBranding {
+  companyName: string;
+  companyFullName: string;
+  tagline: string;
+  logoEmoji: string;
 }

@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { categories as mockCategories, costumes as mockCostumes } from '@/data/costumes';
-import { ArrowLeft, Star, Calendar, DollarSign } from 'lucide-react';
+import { ArrowLeft, Star, Calendar } from 'lucide-react';
 import { Costume, Category } from '@/types';
 
 interface CategoryPageProps {
@@ -142,13 +142,23 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
               <Card key={costume.id} className="group hover:shadow-lg transition-all duration-300">
                 <Link href={`/costumes/${costume.slug}`}>
                   <CardHeader className="p-0">
-                    <div className="aspect-square bg-gradient-to-br from-primary/10 to-primary/5 rounded-t-lg flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                          <span className="text-3xl">🎭</span>
+                    <div className="aspect-square bg-gradient-to-br from-primary/10 to-primary/5 rounded-t-lg overflow-hidden relative">
+                      {costume.images && costume.images.length > 0 && costume.images[0] !== '/images/costumes/placeholder.jpg' ? (
+                        <img
+                          src={costume.images[0]}
+                          alt={costume.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="text-center">
+                            <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                              <span className="text-3xl">🎭</span>
+                            </div>
+                            <p className="text-sm text-gray-500">Click to view details</p>
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-500">Click to view details</p>
-                      </div>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="p-6">
@@ -219,12 +229,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
                             {relatedCategory.name}
                           </h3>
                           <span className="text-2xl">
-                            {relatedCategory.name === 'Inflatable Costumes' ? '🎈' :
-                             relatedCategory.name === 'Character Costumes' ? '🦸' :
-                             relatedCategory.name === 'Animal Costumes' ? '🦁' :
-                             relatedCategory.name === 'Historical Costumes' ? '🏛️' :
-                             relatedCategory.name === 'Superhero Costumes' ? '🦸‍♂️' :
-                             relatedCategory.name === 'Horror Costumes' ? '👻' : '🎭'}
+                            {relatedCategory.icon || '🎭'}
                           </span>
                         </div>
                         <p className="text-gray-600 text-sm mb-4 line-clamp-2">

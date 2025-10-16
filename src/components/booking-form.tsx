@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Costume, CartItem } from '@/types';
-import { formatDisplayDate, calculatePrice, getDurationLabel, generateMessengerBookingMessage, createMessengerURL } from '@/lib/utils';
-import { User, Mail, Phone, Calendar, CreditCard, CheckCircle, MessageCircle } from 'lucide-react';
+import { Costume } from '@/types';
+import { formatDisplayDate, getDurationLabel, generateMessengerBookingMessage, createMessengerURL, getSeasonalRentalRules } from '@/lib/utils';
+import { User, Mail, Phone, CheckCircle, MessageCircle, AlertCircle } from 'lucide-react';
 
 interface BookingFormProps {
   costume: Costume;
@@ -33,6 +33,9 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  
+  // Get seasonal rules for the start date
+  const seasonalRules = getSeasonalRentalRules(startDate);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -161,6 +164,17 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Seasonal Information */}
+          <div className={`rounded-lg p-4 mb-4 ${seasonalRules.season === 'peak' ? 'bg-orange-50 border border-orange-200' : 'bg-blue-50 border border-blue-200'}`}>
+            <h4 className={`font-medium mb-2 flex items-center ${seasonalRules.season === 'peak' ? 'text-orange-900' : 'text-blue-900'}`}>
+              <AlertCircle className="h-4 w-4 mr-2" />
+              {seasonalRules.season === 'peak' ? 'Peak Season Rental' : 'Regular Season Rental'}
+            </h4>
+            <p className={`text-sm ${seasonalRules.season === 'peak' ? 'text-orange-800' : 'text-blue-800'}`}>
+              {seasonalRules.description}
+            </p>
+          </div>
+
           {/* Booking Summary */}
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <h3 className="font-semibold text-gray-900 mb-3">Booking Summary</h3>

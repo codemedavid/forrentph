@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { format, addDays, isAfter, isBefore, isSameDay, parseISO } from "date-fns";
+import { format, addDays, isSameDay } from "date-fns";
 import { Costume, Booking, DateAvailability } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
@@ -27,7 +27,24 @@ export function getDateRange(startDate: Date, endDate: Date): Date[] {
   return dates;
 }
 
-export function calculatePrice(costume: Costume, startDate: Date, endDate: Date): number {
+export function calculatePrice(costume: Costume, startDate: Date, endDate: Date, duration?: string): number {
+  // If duration is explicitly provided, use that for pricing
+  if (duration) {
+    switch (duration) {
+      case '12h':
+        return costume.pricePer12Hours || costume.pricePerDay * 0.6;
+      case '1d':
+        return costume.pricePerDay;
+      case '3d':
+        return costume.pricePerDay * 3 * 0.9; // 10% discount for 3-day rental
+      case '1w':
+        return costume.pricePerWeek;
+      default:
+        return costume.pricePerDay;
+    }
+  }
+  
+  // Legacy calculation based on date difference (for backward compatibility)
   const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   
   if (days <= 1) {
@@ -41,7 +58,24 @@ export function calculatePrice(costume: Costume, startDate: Date, endDate: Date)
   }
 }
 
-export function getDurationLabel(startDate: Date, endDate: Date): string {
+export function getDurationLabel(startDate: Date, endDate: Date, duration?: string): string {
+  // If duration is explicitly provided, use that for label
+  if (duration) {
+    switch (duration) {
+      case '12h':
+        return '12 Hours';
+      case '1d':
+        return '1 Day';
+      case '3d':
+        return '3 Days';
+      case '1w':
+        return '1 Week';
+      default:
+        return '1 Day';
+    }
+  }
+  
+  // Legacy calculation based on date difference (for backward compatibility)
   const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   
   if (days === 1) {
@@ -183,4 +217,63 @@ ${specialRequests ? `📝 SPECIAL REQUESTS:\n${specialRequests}\n\n` : ''}💰 C
 export function createMessengerURL(message: string): string {
   const encodedMessage = encodeURIComponent(message);
   return `https://m.me/ForRentInflatablesph?text=${encodedMessage}`;
+}
+
+// Seasonal rental duration rules
+export function getSeasonalRentalRules(date: Date): {
+  season: 'peak' | 'regular';
+  allowedDurations: string[];
+  minHours: number;
+  description: string;
+} {
+  const month = date.getMonth() + 1; // getMonth() returns 0-11, we want 1-12
+  
+  // October to December (months 10, 11, 12) - Peak Season
+  if (month >= 10 && month <= 12) {
+    return {
+      season: 'peak',
+      allowedDurations: ['12h'],
+      minHours: 12,
+      description: 'Peak season (Oct-Dec): 12-hour rentals only for faster turnover'
+    };
+  }
+  
+  // January to September (months 1-9) - Regular Season
+  return {
+    season: 'regular',
+    allowedDurations: ['1d', '3d', '1w'],
+    minHours: 24,
+    description: 'Regular season (Jan-Sep): Minimum 24-hour rental'
+  };
+}
+
+// Check if a rental duration is allowed for the selected date
+export function isRentalDurationAllowed(startDate: Date, durationCode: string): boolean {
+  const rules = getSeasonalRentalRules(startDate);
+  return rules.allowedDurations.includes(durationCode);
+}
+
+// Validate rental dates against seasonal rules
+export function validateSeasonalRental(
+  startDate: Date,
+  endDate: Date
+): { valid: boolean; error?: string } {
+  const rules = getSeasonalRentalRules(startDate);
+  const hours = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
+  
+  if (rules.season === 'peak' && hours > 12) {
+    return {
+      valid: false,
+      error: `During peak season (October-December), only 12-hour rentals are available. Your selected rental is ${hours} hours.`
+    };
+  }
+  
+  if (rules.season === 'regular' && hours < 24) {
+    return {
+      valid: false,
+      error: `During regular season (January-September), minimum rental duration is 24 hours. Your selected rental is ${hours} hours.`
+    };
+  }
+  
+  return { valid: true };
 }

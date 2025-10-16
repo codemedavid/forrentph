@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { costumes as mockCostumes, categories as mockCategories, bookings, pricingTiers } from '@/data/costumes';
-import { Calendar, Clock, Star, Users, CheckCircle, XCircle, DollarSign } from 'lucide-react';
-import { formatDisplayDate, calculatePrice, getDurationLabel, checkAvailability, getAvailableDates } from '@/lib/utils';
+import { Calendar, Star, CheckCircle, XCircle, DollarSign } from 'lucide-react';
+import { formatDisplayDate, calculatePrice, getDurationLabel, checkAvailability, getAvailableDates, getSeasonalRentalRules, isRentalDurationAllowed } from '@/lib/utils';
 import { Costume, Category, DateAvailability } from '@/types';
 
 export default function CostumeDetailPage() {
@@ -23,6 +23,8 @@ export default function CostumeDetailPage() {
   const [category, setCategory] = useState<Category | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [seasonalRules, setSeasonalRules] = useState<ReturnType<typeof getSeasonalRentalRules> | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Fetch costume from API
   useEffect(() => {
@@ -113,6 +115,19 @@ export default function CostumeDetailPage() {
     }
   };
 
+  // Update seasonal rules when start date changes
+  useEffect(() => {
+    if (selectedStartDate) {
+      const rules = getSeasonalRentalRules(selectedStartDate);
+      setSeasonalRules(rules);
+      
+      // Auto-select first allowed duration if current selection is not allowed
+      if (!rules.allowedDurations.includes(selectedDuration)) {
+        setSelectedDuration(rules.allowedDurations[0]);
+      }
+    }
+  }, [selectedStartDate]);
+
   useEffect(() => {
     if (selectedStartDate && selectedDuration) {
       const endDate = new Date(selectedStartDate);
@@ -162,8 +177,8 @@ export default function CostumeDetailPage() {
     );
   }
 
-  const totalPrice = selectedStartDate && selectedEndDate ? calculatePrice(costume, selectedStartDate, selectedEndDate) : 0;
-  const durationLabel = selectedStartDate && selectedEndDate ? getDurationLabel(selectedStartDate, selectedEndDate) : '';
+  const totalPrice = selectedStartDate && selectedEndDate ? calculatePrice(costume, selectedStartDate, selectedEndDate, selectedDuration) : 0;
+  const durationLabel = selectedStartDate && selectedEndDate ? getDurationLabel(selectedStartDate, selectedEndDate, selectedDuration) : '';
   
   // Check both booking availability and admin blocks
   const isAvailable = selectedStartDate && selectedEndDate ? (() => {
@@ -263,15 +278,48 @@ export default function CostumeDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Costume Details */}
           <div className="space-y-6">
-            {/* Image Placeholder */}
-            <div className="aspect-square bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-32 h-32 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-6xl">🎭</span>
+            {/* Main Costume Image */}
+            <div className="aspect-square bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg overflow-hidden">
+              {costume.images && costume.images.length > 0 && costume.images[0] !== '/images/costumes/placeholder.jpg' ? (
+                <img
+                  src={costume.images[selectedImageIndex]}
+                  alt={`${costume.name} - Image ${selectedImageIndex + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-32 h-32 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-6xl">🎭</span>
+                    </div>
+                    <p className="text-gray-500">Costume Image</p>
+                  </div>
                 </div>
-                <p className="text-gray-500">Costume Image</p>
-              </div>
+              )}
             </div>
+
+            {/* Image Thumbnails (if multiple images) */}
+            {costume.images && costume.images.length > 1 && costume.images[0] !== '/images/costumes/placeholder.jpg' && (
+              <div className="grid grid-cols-4 gap-2">
+                {costume.images.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImageIndex(index)}
+                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedImageIndex === index 
+                        ? 'border-primary shadow-lg scale-105' 
+                        : 'border-gray-200 hover:border-primary/50'
+                    }`}
+                  >
+                    <img
+                      src={image}
+                      alt={`${costume.name} thumbnail ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Costume Info */}
             <Card>
@@ -328,40 +376,29 @@ export default function CostumeDetailPage() {
 
           {/* Booking Section */}
           <div className="space-y-6">
-            {/* Pricing Tiers */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <DollarSign className="h-5 w-5 mr-2" />
-                  Pricing Options
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  {pricingTiers.map((tier) => (
-                    <div
-                      key={tier.duration}
-                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                        selectedDuration === tier.duration
-                          ? 'border-primary bg-primary/5'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => setSelectedDuration(tier.duration)}
-                    >
-                      <div className="text-center">
-                        <div className="font-semibold">{tier.label}</div>
-                        <div className="text-2xl font-bold text-primary">
-                          ₱{Math.round(costume.pricePerDay * tier.multiplier)}
-                        </div>
-                      </div>
+            {/* Seasonal Information Banner */}
+            {seasonalRules && (
+              <Card className={seasonalRules.season === 'peak' ? 'border-orange-200 bg-orange-50' : 'border-blue-200 bg-blue-50'}>
+                <CardContent className="p-4">
+                  <div className="flex items-start space-x-2">
+                    <div className="flex-shrink-0">
+                      {seasonalRules.season === 'peak' ? '🎃' : '📅'}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    <div>
+                      <h4 className={`font-semibold ${seasonalRules.season === 'peak' ? 'text-orange-900' : 'text-blue-900'}`}>
+                        {seasonalRules.season === 'peak' ? 'Peak Season Rental' : 'Regular Season Rental'}
+                      </h4>
+                      <p className={`text-sm ${seasonalRules.season === 'peak' ? 'text-orange-800' : 'text-blue-800'}`}>
+                        {seasonalRules.description}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-            {/* Calendar */}
-            <Card>
+   {/* Calendar */}
+   <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Calendar className="h-5 w-5 mr-2" />
@@ -433,6 +470,76 @@ export default function CostumeDetailPage() {
                 </div>
               </CardContent>
             </Card>
+            {/* Pricing Tiers */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <DollarSign className="h-5 w-5 mr-2" />
+                  Pricing Options
+                </CardTitle>
+                <CardDescription>
+                  {selectedStartDate && seasonalRules 
+                    ? `Available for ${seasonalRules.season === 'peak' ? 'peak' : 'regular'} season`
+                    : 'Select a date to see available options'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  {pricingTiers.map((tier) => {
+                    const isAllowed = selectedStartDate ? isRentalDurationAllowed(selectedStartDate, tier.duration) : true;
+                    const isDisabled = selectedStartDate && !isAllowed;
+                    
+                    // Get actual price from database for each duration
+                    const getActualPrice = () => {
+                      switch (tier.duration) {
+                        case '12h':
+                          return costume.pricePer12Hours || costume.pricePerDay * 0.6;
+                        case '1d':
+                          return costume.pricePerDay;
+                        case '3d':
+                          return costume.pricePerDay * 3 * 0.9; // 10% discount for 3-day
+                        case '1w':
+                          return costume.pricePerWeek;
+                        default:
+                          return costume.pricePerDay;
+                      }
+                    };
+                    
+                    return (
+                      <div
+                        key={tier.duration}
+                        className={`p-4 border rounded-lg transition-colors ${
+                          isDisabled
+                            ? 'opacity-40 cursor-not-allowed border-gray-200 bg-gray-50'
+                            : selectedDuration === tier.duration
+                            ? 'border-primary bg-primary/5 cursor-pointer'
+                            : 'border-gray-200 hover:border-gray-300 cursor-pointer'
+                        }`}
+                        onClick={() => !isDisabled && setSelectedDuration(tier.duration)}
+                        title={isDisabled ? 'Not available for selected date' : ''}
+                      >
+                        <div className="text-center">
+                          <div className="font-semibold">{tier.label}</div>
+                          <div className="text-2xl font-bold text-primary">
+                            ₱{Math.round(getActualPrice())}
+                          </div>
+                          {isDisabled && (
+                            <div className="text-xs text-gray-500 mt-1">Not available</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {!selectedStartDate && (
+                  <p className="text-sm text-gray-500 mt-4 text-center">
+                    Please select a start date to see available rental durations
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+         
 
             {/* Booking Summary */}
             {selectedStartDate && selectedEndDate && (

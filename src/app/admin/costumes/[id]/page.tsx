@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Edit, Package } from 'lucide-react';
@@ -111,12 +112,14 @@ export default function CostumeDetailPage() {
                     {costume.images.map((image, index) => (
                       <div
                         key={index}
-                        className="aspect-square rounded-lg overflow-hidden border border-gray-200"
+                        className="relative aspect-square rounded-lg overflow-hidden border border-gray-200"
                       >
-                        <img
+                        <Image
                           src={image}
                           alt={`${costume.name} ${index + 1}`}
-                          className="w-full h-full object-cover"
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 50vw, 25vw"
                         />
                       </div>
                     ))}

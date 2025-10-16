@@ -3,12 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { 
   X, 
-  Package, 
   Save,
-  Upload,
   Plus,
   Trash2
 } from 'lucide-react';
@@ -46,6 +43,10 @@ export function CostumeFormModal({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
 
   // Fetch categories from API
   useEffect(() => {
@@ -139,6 +140,43 @@ export function CostumeFormModal({
       .trim();
   };
 
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+
+    setIsCreatingCategory(true);
+    try {
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newCategoryName,
+          description: newCategoryDescription
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const newCategory = data.category;
+        
+        // Add to categories list and select it
+        setCategories(prev => [...prev, newCategory]);
+        setFormData(prev => ({ ...prev, categoryId: newCategory.id }));
+        
+        // Reset form
+        setNewCategoryName('');
+        setNewCategoryDescription('');
+        setShowAddCategory(false);
+      } else {
+        alert('Failed to create category. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating category:', error);
+      alert('Failed to create category. Please try again.');
+    } finally {
+      setIsCreatingCategory(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -153,7 +191,7 @@ export function CostumeFormModal({
       ...formData,
       slug,
       features,
-      images: costume?.images || ['/images/costumes/placeholder.jpg']
+      images: formData.images.length > 0 ? formData.images : ['/images/costumes/placeholder.jpg']
     };
 
     // Simulate API call
@@ -197,6 +235,7 @@ export function CostumeFormModal({
                   currentImages={formData.images}
                   onImagesChange={(images) => setFormData(prev => ({ ...prev, images }))}
                   maxImages={5}
+                  folder="costumes"
                 />
               </CardContent>
             </Card>
@@ -227,22 +266,102 @@ export function CostumeFormModal({
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Category *
                     </label>
-                    <select
-                      name="categoryId"
-                      required
-                      value={formData.categoryId}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
-                    >
-                      <option value="">Select a category</option>
-                      {categories.map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2">
+                      <select
+                        name="categoryId"
+                        required
+                        value={formData.categoryId}
+                        onChange={handleInputChange}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+                      >
+                        <option value="">Select a category</option>
+                        {categories.map(category => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAddCategory(!showAddCategory)}
+                        className="whitespace-nowrap"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add New
+                      </Button>
+                    </div>
                   </div>
                 </div>
+
+                {/* Add New Category Form */}
+                {showAddCategory && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+                    <h4 className="font-medium text-blue-900 flex items-center">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create New Category
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Category Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+                          placeholder="e.g., Superhero Costumes"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Description (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={newCategoryDescription}
+                          onChange={(e) => setNewCategoryDescription(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+                          placeholder="Brief description"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleCreateCategory}
+                        disabled={!newCategoryName.trim() || isCreatingCategory}
+                      >
+                        {isCreatingCategory ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Create Category
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowAddCategory(false);
+                          setNewCategoryName('');
+                          setNewCategoryDescription('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Description *

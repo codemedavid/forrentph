@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { v2 as cloudinary } from 'cloudinary';
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
+    const folder = formData.get('folder') as string || 'costumes';
     
     if (!file) {
       return NextResponse.json(
@@ -21,48 +29,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json(
-        { error: 'File size must be less than 5MB' },
+        { error: 'File size must be less than 10MB' },
         { status: 400 }
       );
     }
 
-    // Generate unique filename
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-
-    // Convert file to ArrayBuffer
+    // Convert file to base64
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+    const dataURI = `data:${file.type};base64,${base64}`;
 
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
-      .from('costume-images')
-      .upload(fileName, buffer, {
-        contentType: file.type,
-        cacheControl: '3600',
-        upsert: false
-      });
-
-    if (error) {
-      console.error('Storage error:', error);
-      return NextResponse.json(
-        { error: 'Failed to upload file' },
-        { status: 500 }
-      );
-    }
-
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('costume-images')
-      .getPublicUrl(fileName);
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder: `forrentph/${folder}`,
+      resource_type: 'image',
+      transformation: [
+        { width: 1200, height: 900, crop: 'limit' },
+        { quality: 'auto:good' },
+        { fetch_format: 'auto' }
+      ]
+    });
 
     return NextResponse.json({
       success: true,
-      url: publicUrl,
-      path: fileName
+      url: result.secure_url,
+      publicId: result.public_id,
+      width: result.width,
+      height: result.height
     }, { status: 200 });
 
   } catch (error) {
@@ -77,21 +74,20 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const path = searchParams.get('path');
+    const publicId = searchParams.get('publicId');
 
-    if (!path) {
+    if (!publicId) {
       return NextResponse.json(
-        { error: 'No file path provided' },
+        { error: 'No public ID provided' },
         { status: 400 }
       );
     }
 
-    const { error } = await supabase.storage
-      .from('costume-images')
-      .remove([path]);
+    // Delete from Cloudinary
+    const result = await cloudinary.uploader.destroy(publicId);
 
-    if (error) {
-      console.error('Delete error:', error);
+    if (result.result !== 'ok') {
+      console.error('Delete error:', result);
       return NextResponse.json(
         { error: 'Failed to delete file' },
         { status: 500 }

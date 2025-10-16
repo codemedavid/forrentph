@@ -7,7 +7,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-export function Navigation() {
+interface HeaderBranding {
+  companyName: string;
+  companyFullName: string;
+  tagline: string;
+  logoEmoji: string;
+}
+
+interface NavigationProps {
+  branding: HeaderBranding;
+}
+
+export function Navigation({ branding }: NavigationProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const navItems = [
@@ -19,19 +30,19 @@ export function Navigation() {
   ];
 
   return (
-    <nav className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+    <nav className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b sticky top-0 z-50 w-full">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className="flex justify-between items-center h-16 w-full">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-primary-foreground font-bold text-xl">🎭</span>
+              <span className="text-primary-foreground font-bold text-xl">{branding.logoEmoji}</span>
             </div>
-            <div>
-              <span className="text-xl font-bold text-foreground">CostumeRental</span>
-              <Badge variant="secondary" className="ml-2 text-xs">
-                Premium
-              </Badge>
+            <div className="hidden sm:block">
+              <div className="flex flex-col">
+                <span className="text-lg sm:text-xl font-bold text-foreground">{branding.companyName}</span>
+                <span className="text-xs sm:text-sm text-muted-foreground">{branding.tagline}</span>
+              </div>
             </div>
           </Link>
 
@@ -50,10 +61,12 @@ export function Navigation() {
           </div>
 
           {/* Desktop Actions */}
-          <div className="hidden md:flex items-center space-x-3">
-            <Button variant="ghost" size="icon" className="hover:bg-accent">
-              <Search className="h-4 w-4" />
-            </Button>
+          <div className="hidden md:flex items-center space-x-2 lg:space-x-3">
+            <Link href="/costumes">
+              <Button variant="ghost" size="icon" className="hover:bg-accent">
+                <Search className="h-4 w-4" />
+              </Button>
+            </Link>
             <Button variant="ghost" size="icon" className="relative hover:bg-accent">
               <ShoppingCart className="h-4 w-4" />
               <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
@@ -65,9 +78,11 @@ export function Navigation() {
                 Admin
               </Button>
             </Link>
-            <Button size="lg" className="shadow-lg">
-              Book Now
-            </Button>
+            <Link href="/booking">
+              <Button size="sm" className="shadow-lg text-sm px-3">
+                Book Now
+              </Button>
+            </Link>
           </div>
 
           {/* Mobile menu button */}
@@ -108,9 +123,11 @@ export function Navigation() {
             ))}
             <div className="pt-4 border-t">
               <div className="flex items-center space-x-2 px-3">
-                <Button variant="ghost" size="icon" className="flex-1 hover:bg-accent">
-                  <Search className="h-4 w-4" />
-                </Button>
+                <Link href="/costumes" className="flex-1">
+                  <Button variant="ghost" size="icon" className="w-full hover:bg-accent">
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </Link>
                 <Button variant="ghost" size="icon" className="flex-1 relative hover:bg-accent">
                   <ShoppingCart className="h-4 w-4" />
                   <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
@@ -122,7 +139,9 @@ export function Navigation() {
                 <Link href="/admin" className="block">
                   <Button variant="outline" className="w-full" size="sm">Admin Panel</Button>
                 </Link>
-                <Button className="w-full" size="lg">Book Now</Button>
+                <Link href="/booking" className="block">
+                  <Button className="w-full" size="lg">Book Now</Button>
+                </Link>
               </div>
             </div>
           </div>

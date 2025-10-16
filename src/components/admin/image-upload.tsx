@@ -1,28 +1,33 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 
 interface ImageUploadProps {
   currentImages?: string[];
   onImagesChange: (images: string[]) => void;
   maxImages?: number;
-  bucketName?: string;
+  folder?: string; // Cloudinary folder name
 }
 
 export function ImageUpload({ 
   currentImages = [], 
   onImagesChange, 
   maxImages = 5,
-  bucketName = 'costume-images'
+  folder = 'costumes'
 }: ImageUploadProps) {
   const [images, setImages] = useState<string[]>(currentImages);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync images state when currentImages prop changes (e.g., when editing different costumes)
+  useEffect(() => {
+    console.log('🖼️ ImageUpload: currentImages changed:', currentImages);
+    setImages(currentImages);
+  }, [currentImages]);
 
   const uploadImage = async (file: File): Promise<string | null> => {
     try {
@@ -33,32 +38,29 @@ export function ImageUpload({
         throw new Error('Please upload an image file');
       }
 
-      // Validate file size (5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error('Image size should be less than 5MB');
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error('Image size should be less than 10MB');
       }
 
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', folder);
 
-      // Upload to Supabase Storage
-      const { data, error: uploadError } = await supabase.storage
-        .from(bucketName)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+      // Upload via API to Cloudinary
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
 
-      if (uploadError) throw uploadError;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(filePath);
-
-      return publicUrl;
+      const data = await response.json();
+      return data.url;
     } catch (err: unknown) {
       console.error('Error uploading image:', err);
       setError(err instanceof Error ? err.message : 'Failed to upload image');
@@ -99,17 +101,24 @@ export function ImageUpload({
 
   const removeImage = async (imageUrl: string, index: number) => {
     try {
-      // Extract filename from URL
+      // Extract public ID from Cloudinary URL
+      // URL format: https://res.cloudinary.com/cloud_name/image/upload/v1234567/folder/filename.jpg
       const urlParts = imageUrl.split('/');
-      const fileName = urlParts[urlParts.length - 1];
+      const uploadIndex = urlParts.indexOf('upload');
+      if (uploadIndex !== -1 && uploadIndex + 2 < urlParts.length) {
+        // Get everything after 'upload/v1234567/'
+        const pathParts = urlParts.slice(uploadIndex + 2);
+        const publicId = pathParts.join('/').replace(/\.[^/.]+$/, ''); // Remove file extension
 
-      // Delete from Supabase Storage
-      const { error: deleteError } = await supabase.storage
-        .from(bucketName)
-        .remove([fileName]);
-
-      if (deleteError) {
-        console.error('Error deleting image:', deleteError);
+        // Delete from Cloudinary via API
+        try {
+          await fetch(`/api/upload?publicId=${encodeURIComponent(publicId)}`, {
+            method: 'DELETE'
+          });
+        } catch (deleteError) {
+          console.error('Error deleting from Cloudinary:', deleteError);
+          // Continue even if delete fails - remove from UI
+        }
       }
 
       // Remove from state
@@ -162,7 +171,7 @@ export function ImageUpload({
             Costume Images
           </label>
           <p className="text-xs text-gray-500 mt-1">
-            Upload up to {maxImages} images (max 5MB each, JPG, PNG, WebP, GIF)
+            Upload up to {maxImages} images (max 10MB each, JPG, PNG, WebP, GIF)
           </p>
         </div>
         <Badge variant="secondary">
@@ -199,7 +208,7 @@ export function ImageUpload({
               Click to upload or drag and drop
             </p>
             <p className="text-xs text-gray-500">
-              PNG, JPG, WebP, GIF up to 5MB
+              PNG, JPG, WebP, GIF up to 10MB
             </p>
           </div>
         )}
@@ -224,9 +233,20 @@ export function ImageUpload({
                 src={imageUrl}
                 alt={`Costume image ${index + 1}`}
                 className="w-full h-full object-cover"
+                onLoad={() => {
+                  console.log('✅ Image loaded successfully:', imageUrl);
+                }}
                 onError={(e) => {
+                  console.error('❌ Image failed to load:', imageUrl);
                   const target = e.target as HTMLImageElement;
-                  target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y3ZjdmNyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5JbWFnZSBub3QgZm91bmQ8L3RleHQ+PC9zdmc+';
+                  // Show a better placeholder with the image URL for debugging
+                  target.src = `data:image/svg+xml;base64,${btoa(`
+                    <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="200" height="200" fill="#f3f4f6"/>
+                      <text x="50%" y="45%" font-family="Arial" font-size="12" fill="#6b7280" text-anchor="middle" dy=".3em">Image not found</text>
+                      <text x="50%" y="55%" font-family="Arial" font-size="10" fill="#9ca3af" text-anchor="middle" dy=".3em">${imageUrl.length > 30 ? imageUrl.substring(0, 30) + '...' : imageUrl}</text>
+                    </svg>
+                  `)}`;
                 }}
               />
               

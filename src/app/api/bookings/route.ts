@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { validateSeasonalRental } from '@/lib/utils';
 
 // Helper function to expire pending bookings
 async function expirePendingBookings() {
@@ -68,6 +69,37 @@ async function isCostumeBlocked(
   return { blocked: false };
 }
 
+// Transform database snake_case to frontend camelCase
+interface DbBooking {
+  id: string;
+  costume_id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  start_date: string;
+  end_date: string;
+  total_price: number;
+  status: string;
+  special_requests?: string;
+  created_at: string;
+}
+
+function transformBooking(dbBooking: DbBooking) {
+  return {
+    id: dbBooking.id,
+    costumeId: dbBooking.costume_id,
+    customerName: dbBooking.customer_name,
+    customerEmail: dbBooking.customer_email,
+    customerPhone: dbBooking.customer_phone,
+    startDate: new Date(dbBooking.start_date),
+    endDate: new Date(dbBooking.end_date),
+    totalPrice: Number(dbBooking.total_price),
+    status: dbBooking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+    specialRequests: dbBooking.special_requests,
+    createdAt: new Date(dbBooking.created_at),
+  };
+}
+
 // Generate unique booking reference
 function generateBookingReference(): string {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -97,7 +129,9 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json({ bookings: data }, { status: 200 });
+    const transformedData = data?.map(transformBooking) || [];
+
+    return NextResponse.json({ bookings: transformedData }, { status: 200 });
   } catch (error) {
     console.error('Error fetching bookings:', error);
     return NextResponse.json(
@@ -115,7 +149,22 @@ export async function POST(request: NextRequest) {
     // Step 1: Expire old pending bookings first
     await expirePendingBookings();
 
-    // Step 2: Check if costume is already blocked for these dates
+    // Step 2: Validate seasonal rental rules
+    const startDate = new Date(body.startDate);
+    const endDate = new Date(body.endDate);
+    const seasonalValidation = validateSeasonalRental(startDate, endDate);
+    
+    if (!seasonalValidation.valid) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid rental duration for season',
+          message: seasonalValidation.error
+        },
+        { status: 400 }
+      );
+    }
+
+    // Step 3: Check if costume is already blocked for these dates
     const { blocked, blockingBooking } = await isCostumeBlocked(
       body.costumeId,
       body.startDate,
@@ -138,14 +187,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 3: Calculate 10-minute block expiry
+    // Step 4: Calculate 10-minute block expiry
     const blockedUntil = new Date();
     blockedUntil.setMinutes(blockedUntil.getMinutes() + 10);
 
-    // Step 4: Generate booking reference
+    // Step 5: Generate booking reference
     const bookingReference = generateBookingReference();
 
-    // Step 5: Create the booking with block
+    // Step 6: Create the booking with block
     const { data, error } = await supabase
       .from('bookings')
       .insert([{

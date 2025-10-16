@@ -3,11 +3,11 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { BookingForm } from '@/components/booking-form';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { costumes } from '@/data/costumes';
-import { ArrowLeft, Calendar, DollarSign, Clock } from 'lucide-react';
-import { formatDisplayDate, calculatePrice, getDurationLabel } from '@/lib/utils';
+import { ArrowLeft, Calendar, Clock } from 'lucide-react';
+import { formatDisplayDate, calculatePrice, getDurationLabel, getSeasonalRentalRules } from '@/lib/utils';
 import { Costume } from '@/types';
 
 function BookingPageContent() {
@@ -19,6 +19,7 @@ function BookingPageContent() {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [totalPrice, setTotalPrice] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [seasonalRules, setSeasonalRules] = useState<ReturnType<typeof getSeasonalRentalRules> | null>(null);
 
   useEffect(() => {
     const costumeId = searchParams.get('costumeId');
@@ -62,6 +63,7 @@ function BookingPageContent() {
         setStartDate(start);
         setEndDate(end);
         setTotalPrice(calculatePrice(foundCostume, start, end));
+        setSeasonalRules(getSeasonalRentalRules(start));
         console.log('✅ Booking page ready');
       } else {
         // Invalid parameters, redirect to costumes page
@@ -79,6 +81,7 @@ function BookingPageContent() {
         setStartDate(start);
         setEndDate(end);
         setTotalPrice(calculatePrice(foundCostume, start, end));
+        setSeasonalRules(getSeasonalRentalRules(start));
       } else {
         router.push('/costumes');
       }
@@ -156,6 +159,27 @@ function BookingPageContent() {
 
           {/* Booking Summary Sidebar */}
           <div className="lg:col-span-1">
+            {/* Seasonal Information */}
+            {seasonalRules && (
+              <Card className={`mb-4 ${seasonalRules.season === 'peak' ? 'border-orange-200 bg-orange-50' : 'border-blue-200 bg-blue-50'}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start space-x-2">
+                    <div className="flex-shrink-0 text-2xl">
+                      {seasonalRules.season === 'peak' ? '🎃' : '📅'}
+                    </div>
+                    <div>
+                      <h4 className={`font-semibold text-sm ${seasonalRules.season === 'peak' ? 'text-orange-900' : 'text-blue-900'}`}>
+                        {seasonalRules.season === 'peak' ? 'Peak Season Rental' : 'Regular Season Rental'}
+                      </h4>
+                      <p className={`text-xs mt-1 ${seasonalRules.season === 'peak' ? 'text-orange-800' : 'text-blue-800'}`}>
+                        {seasonalRules.description}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
             <Card className="sticky top-8">
               <CardHeader>
                 <CardTitle>Booking Summary</CardTitle>
