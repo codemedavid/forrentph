@@ -227,6 +227,12 @@ export const bookings: Booking[] = [
     startDate: new Date('2024-01-15'),
     endDate: new Date('2024-01-16'),
     totalPrice: 2500,
+    securityDeposit: 1000,
+    lateReturnFeePerHour: 30,
+    lateFeeAmount: 0,
+    securityDepositRefunded: false,
+    pickupTimeStart: '08:00',
+    pickupTimeEnd: '10:00',
     status: 'confirmed',
     specialRequests: 'Need help with setup',
     createdAt: new Date('2024-01-10')
@@ -240,6 +246,12 @@ export const bookings: Booking[] = [
     startDate: new Date('2024-01-20'),
     endDate: new Date('2024-01-22'),
     totalPrice: 4400,
+    securityDeposit: 1000,
+    lateReturnFeePerHour: 30,
+    lateFeeAmount: 0,
+    securityDepositRefunded: false,
+    pickupTimeStart: '08:00',
+    pickupTimeEnd: '10:00',
     status: 'confirmed',
     createdAt: new Date('2024-01-12')
   }
