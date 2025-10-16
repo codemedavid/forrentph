@@ -33,9 +33,20 @@ export interface Booking {
   startDate: Date;
   endDate: Date;
   totalPrice: number;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  securityDeposit: number;
+  lateReturnFeePerHour: number;
+  actualReturnDate?: Date;
+  lateFeeAmount: number;
+  securityDepositRefunded: boolean;
+  pickupTimeStart: string; // HH:MM format
+  pickupTimeEnd: string; // HH:MM format
+  refundAmount?: number;
+  refundNotes?: string;
+  refundProcessedAt?: Date;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'expired';
   specialRequests?: string;
   createdAt: Date;
+  bookingReference?: string;
 }
 
 export interface PricingTier {

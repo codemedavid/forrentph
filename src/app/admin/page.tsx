@@ -23,6 +23,7 @@ import { costumes as mockCostumes, bookings as mockBookings } from '@/data/costu
 import { formatDisplayDate } from '@/lib/utils';
 import { OrderDetailModal } from '@/components/admin/order-detail-modal';
 import { CostumeFormModal } from '@/components/admin/costume-form-modal';
+import { BookingEditModal } from '@/components/admin/booking-edit-modal';
 import { AdminLayout } from '@/components/admin/admin-layout';
 import { Costume, Booking } from '@/types';
 
@@ -33,46 +34,48 @@ export default function AdminDashboard() {
   const [selectedOrder, setSelectedOrder] = useState<Booking | null>(null);
   const [selectedCostume, setSelectedCostume] = useState<Costume | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isOrderEditModalOpen, setIsOrderEditModalOpen] = useState(false);
   const [isCostumeModalOpen, setIsCostumeModalOpen] = useState(false);
   const [costumes, setCostumes] = useState<Costume[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch data from Supabase on mount
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
-        
-        // Fetch costumes
-        const costumesResponse = await fetch('/api/costumes');
-        if (costumesResponse.ok) {
-          const costumesData = await costumesResponse.json();
-          setCostumes(costumesData.costumes || []);
-        } else {
-          console.warn('Failed to fetch costumes, using mock data');
-          setCostumes(mockCostumes);
-        }
-
-        // Fetch bookings
-        const bookingsResponse = await fetch('/api/bookings');
-        if (bookingsResponse.ok) {
-          const bookingsData = await bookingsResponse.json();
-          setBookings(bookingsData.bookings || []);
-        } else {
-          console.warn('Failed to fetch bookings, using mock data');
-          setBookings(mockBookings);
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        // Fallback to mock data
+  // Fetch data function (can be called to refresh)
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch costumes
+      const costumesResponse = await fetch('/api/costumes');
+      if (costumesResponse.ok) {
+        const costumesData = await costumesResponse.json();
+        setCostumes(costumesData.costumes || []);
+      } else {
+        console.warn('Failed to fetch costumes, using mock data');
         setCostumes(mockCostumes);
-        setBookings(mockBookings);
-      } finally {
-        setLoading(false);
       }
-    }
 
+      // Fetch bookings
+      const bookingsResponse = await fetch('/api/bookings');
+      if (bookingsResponse.ok) {
+        const bookingsData = await bookingsResponse.json();
+        setBookings(bookingsData.bookings || []);
+      } else {
+        console.warn('Failed to fetch bookings, using mock data');
+        setBookings(mockBookings);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      // Fallback to mock data
+      setCostumes(mockCostumes);
+      setBookings(mockBookings);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data on mount
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -81,6 +84,9 @@ export default function AdminDashboard() {
   const totalRevenue = bookings.reduce((sum, booking) => sum + booking.totalPrice, 0);
   const pendingOrders = bookings.filter(b => b.status === 'pending').length;
   const totalCostumes = costumes.length;
+  const totalSecurityDeposits = bookings.reduce((sum, booking) => sum + (booking.securityDeposit || 0), 0);
+  const heldDeposits = bookings.filter(b => !b.securityDepositRefunded && b.securityDeposit).length;
+  const totalLateFees = bookings.reduce((sum, booking) => sum + (booking.lateFeeAmount || 0), 0);
 
   // Filter orders based on search and status
   const filteredBookings = bookings.filter(booking => {
@@ -115,6 +121,11 @@ export default function AdminDashboard() {
     setIsOrderModalOpen(true);
   };
 
+  const handleOrderEdit = (booking: Booking) => {
+    setSelectedOrder(booking);
+    setIsOrderEditModalOpen(true);
+  };
+
   const handleCostumeClick = (costume: Costume) => {
     setSelectedCostume(costume);
     setIsCostumeModalOpen(true);
@@ -139,11 +150,68 @@ export default function AdminDashboard() {
         throw new Error('Failed to update order status');
       }
 
-      // Refresh the page to show updated data
-      window.location.reload();
+      // Refresh data without page reload
+      await fetchData();
+      
+      // Update selected order if it's still open
+      if (selectedOrder && selectedOrder.id === bookingId) {
+        const updatedBooking = bookings.find(b => b.id === bookingId);
+        if (updatedBooking) {
+          setSelectedOrder(updatedBooking);
+        }
+      }
     } catch (error) {
       console.error('Error updating order status:', error);
       alert('Failed to update order status. Please try again.');
+    }
+  };
+
+  const handleBookingSave = async (bookingId: string, updatedData: Partial<Booking>) => {
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update booking');
+      }
+
+      // Refresh data without page reload
+      await fetchData();
+      
+      // Close modal
+      setIsOrderEditModalOpen(false);
+      setSelectedOrder(null);
+      
+      alert('Booking updated successfully!');
+    } catch (error) {
+      console.error('Error updating booking:', error);
+      throw error; // Re-throw to let the modal handle it
+    }
+  };
+
+  const handleDeleteBooking = async (bookingId: string) => {
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete booking');
+      }
+
+      // Refresh data without page reload
+      await fetchData();
+      
+      alert('Booking deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting booking:', error);
+      alert('Failed to delete booking. Please try again.');
     }
   };
 
@@ -168,9 +236,14 @@ export default function AdminDashboard() {
         throw new Error(errorData.error || 'Failed to save costume');
       }
 
-      // Close modal and refresh the page to show updated data
+      // Refresh data without page reload
+      await fetchData();
+      
+      // Close modal
       setIsCostumeModalOpen(false);
-      window.location.reload();
+      setSelectedCostume(null);
+      
+      alert('Costume saved successfully!');
     } catch (error) {
       console.error('Error saving costume:', error);
       alert(`Failed to save costume: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -297,6 +370,54 @@ export default function AdminDashboard() {
               </Card>
             </div>
 
+            {/* Additional Financial Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+              <Card className="border-2 border-green-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <DollarSign className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Held Deposits</p>
+                      <p className="text-xl font-bold text-gray-900">{heldDeposits}</p>
+                      <p className="text-xs text-gray-500">₱{(heldDeposits * 1000).toLocaleString()} total</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-2 border-orange-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <Calendar className="h-6 w-6 text-orange-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Late Fees Collected</p>
+                      <p className="text-xl font-bold text-gray-900">₱{totalLateFees.toLocaleString()}</p>
+                      <p className="text-xs text-gray-500">All time</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-2 border-blue-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <DollarSign className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">Total + Deposits</p>
+                      <p className="text-xl font-bold text-gray-900">₱{(totalRevenue + totalSecurityDeposits).toLocaleString()}</p>
+                      <p className="text-xs text-gray-500">Including security deposits</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             {/* Recent Orders */}
             <Card>
               <CardHeader>
@@ -322,6 +443,16 @@ export default function AdminDashboard() {
                             {booking.status}
                           </Badge>
                           <p className="text-sm font-medium mt-1">₱{booking.totalPrice}</p>
+                          {booking.securityDeposit && (
+                            <p className="text-xs text-green-600 mt-1">
+                              +₱{booking.securityDeposit} deposit
+                            </p>
+                          )}
+                          {booking.lateFeeAmount > 0 && (
+                            <p className="text-xs text-red-600">
+                              +₱{booking.lateFeeAmount} late fee
+                            </p>
+                          )}
                         </div>
                       </div>
                     );
@@ -385,6 +516,7 @@ export default function AdminDashboard() {
                         <th className="text-left py-3 px-4 font-medium text-gray-700">Costume</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-700">Dates</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-700">Amount</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">Deposit</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>
                       </tr>
@@ -412,6 +544,15 @@ export default function AdminDashboard() {
                             </td>
                             <td className="py-3 px-4">
                               <p className="font-medium">₱{booking.totalPrice}</p>
+                              {booking.lateFeeAmount > 0 && (
+                                <p className="text-xs text-red-600">+₱{booking.lateFeeAmount} late fee</p>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <p className="font-medium text-green-700">₱{booking.securityDeposit || 1000}</p>
+                              <Badge className={`text-xs ${booking.securityDepositRefunded ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                {booking.securityDepositRefunded ? 'Refunded' : 'Held'}
+                              </Badge>
                             </td>
                             <td className="py-3 px-4">
                               <Badge className={getStatusColor(booking.status)}>
@@ -424,13 +565,29 @@ export default function AdminDashboard() {
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => handleOrderClick(booking)}
+                                  title="View details"
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleOrderEdit(booking)}
+                                  title="Edit booking"
+                                >
                                   <Edit className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="text-red-600 hover:text-red-700"
+                                  onClick={() => {
+                                    if (confirm(`Are you sure you want to delete booking #${booking.id}?`)) {
+                                      handleDeleteBooking(booking.id);
+                                    }
+                                  }}
+                                  title="Delete booking"
+                                >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
@@ -606,16 +763,34 @@ export default function AdminDashboard() {
 
       {/* Modals */}
       {selectedOrder && (
-        <OrderDetailModal
-          booking={selectedOrder}
-          costume={costumes.find(c => c.id === selectedOrder.costumeId)!}
-          isOpen={isOrderModalOpen}
-          onClose={() => {
-            setIsOrderModalOpen(false);
-            setSelectedOrder(null);
-          }}
-          onStatusUpdate={handleOrderStatusUpdate}
-        />
+        <>
+          <OrderDetailModal
+            booking={selectedOrder}
+            costume={costumes.find(c => c.id === selectedOrder.costumeId)!}
+            isOpen={isOrderModalOpen}
+            onClose={() => {
+              setIsOrderModalOpen(false);
+              setSelectedOrder(null);
+            }}
+            onStatusUpdate={handleOrderStatusUpdate}
+            onEdit={() => {
+              setIsOrderModalOpen(false);
+              setIsOrderEditModalOpen(true);
+            }}
+            onRefresh={fetchData}
+          />
+
+          <BookingEditModal
+            booking={selectedOrder}
+            costumes={costumes}
+            isOpen={isOrderEditModalOpen}
+            onClose={() => {
+              setIsOrderEditModalOpen(false);
+              setSelectedOrder(null);
+            }}
+            onSave={handleBookingSave}
+          />
+        </>
       )}
 
       <CostumeFormModal

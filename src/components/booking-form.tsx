@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Costume } from '@/types';
-import { formatDisplayDate, getDurationLabel, generateMessengerBookingMessage, createMessengerURL, getSeasonalRentalRules } from '@/lib/utils';
+import { formatDisplayDate, getDurationLabel, generateMessengerBookingMessage, createMessengerURL, getSeasonalRentalRules, calculateSecurityDeposit, calculateTotalBookingAmount } from '@/lib/utils';
 import { User, Mail, Phone, CheckCircle, MessageCircle, AlertCircle } from 'lucide-react';
 
 interface BookingFormProps {
@@ -36,6 +36,10 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
   
   // Get seasonal rules for the start date
   const seasonalRules = getSeasonalRentalRules(startDate);
+  
+  // Calculate security deposit and total amount
+  const securityDeposit = calculateSecurityDeposit();
+  const totalAmount = calculateTotalBookingAmount(totalPrice, securityDeposit);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -144,7 +148,9 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
             <p><strong>Booking ID:</strong> #{Date.now().toString().slice(-6)}</p>
             <p><strong>Costume:</strong> {costume.name}</p>
             <p><strong>Duration:</strong> {durationLabel}</p>
-            <p><strong>Total:</strong> ₱{totalPrice}</p>
+            <p><strong>Rental Fee:</strong> ₱{totalPrice}</p>
+            <p><strong>Security Deposit:</strong> ₱{securityDeposit}</p>
+            <p><strong>Total Amount:</strong> ₱{totalAmount}</p>
           </div>
         </CardContent>
       </Card>
@@ -195,10 +201,29 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
                 <span>End Date:</span>
                 <span className="font-medium">{formatDisplayDate(endDate)}</span>
               </div>
+              <div className="flex justify-between">
+                <span>Rental Fee:</span>
+                <span className="font-medium">₱{totalPrice}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Security Deposit:</span>
+                <span className="font-medium text-green-600">₱{securityDeposit}</span>
+              </div>
               <div className="border-t pt-2 mt-2">
-                <div className="flex justify-between font-semibold">
-                  <span>Total:</span>
-                  <span className="text-primary">₱{totalPrice}</span>
+                <div className="flex justify-between font-semibold text-lg">
+                  <span>Total Amount:</span>
+                  <span className="text-primary">₱{totalAmount}</span>
+                </div>
+              </div>
+              <div className="bg-blue-50 p-3 rounded-md mt-3">
+                <div className="text-xs text-blue-800">
+                  <p><strong>📋 Terms & Conditions:</strong></p>
+                  <ul className="mt-1 space-y-1">
+                    <li>• Security deposit refundable after return</li>
+                    <li>• Pickup: 8:00 AM - 10:00 AM</li>
+                    <li>• Late return: ₱30-50/hour after pickup window</li>
+                    <li>• Return anytime during business hours</li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -314,7 +339,7 @@ export function BookingForm({ costume, startDate, endDate, totalPrice, onBooking
               ) : (
                 <>
                   <MessageCircle className="h-4 w-4 mr-2" />
-                  Send to Messenger - ₱{totalPrice}
+                  Send to Messenger - ₱{totalAmount}
                 </>
               )}
             </Button>

@@ -16,7 +16,11 @@ import {
   Edit,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  Shield,
+  AlertCircle,
+  RefreshCw,
+  Banknote
 } from 'lucide-react';
 import { Booking, Costume } from '@/types';
 import { formatDisplayDate, getDurationLabel } from '@/lib/utils';
@@ -27,6 +31,8 @@ interface OrderDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onStatusUpdate: (bookingId: string, newStatus: Booking['status']) => void;
+  onEdit?: () => void;
+  onRefresh?: () => Promise<void>;
 }
 
 export function OrderDetailModal({ 
@@ -34,13 +40,33 @@ export function OrderDetailModal({
   costume, 
   isOpen, 
   onClose, 
-  onStatusUpdate 
+  onStatusUpdate,
+  onEdit,
+  onRefresh
 }: OrderDetailModalProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isProcessingReturn, setIsProcessingReturn] = useState(false);
+  const [isProcessingRefund, setIsProcessingRefund] = useState(false);
+  const [actualReturnDate, setActualReturnDate] = useState('');
 
   if (!isOpen) return null;
 
   const durationLabel = getDurationLabel(booking.startDate, booking.endDate);
+  
+  // Calculate if late and current fees
+  const now = new Date();
+  const expectedReturn = new Date(booking.endDate);
+  expectedReturn.setHours(8, 0, 0, 0); // 8 AM pickup window
+  const isCurrentlyLate = now > expectedReturn && booking.status !== 'completed' && !booking.actualReturnDate;
+  
+  const hoursLate = isCurrentlyLate 
+    ? Math.ceil((now.getTime() - expectedReturn.getTime()) / (1000 * 60 * 60))
+    : booking.actualReturnDate && booking.lateFeeAmount > 0
+    ? Math.ceil(booking.lateFeeAmount / (booking.lateReturnFeePerHour || 30))
+    : 0;
+  
+  const currentLateFee = isCurrentlyLate ? hoursLate * (booking.lateReturnFeePerHour || 30) : booking.lateFeeAmount;
+  const estimatedRefund = (booking.securityDeposit || 0) - currentLateFee;
 
   const handleStatusUpdate = async (newStatus: Booking['status']) => {
     setIsUpdating(true);
@@ -48,6 +74,85 @@ export function OrderDetailModal({
     await new Promise(resolve => setTimeout(resolve, 1000));
     onStatusUpdate(booking.id, newStatus);
     setIsUpdating(false);
+  };
+
+  const handleProcessReturn = async () => {
+    if (!actualReturnDate) {
+      alert('Please select a return date and time');
+      return;
+    }
+
+    setIsProcessingReturn(true);
+    try {
+      const response = await fetch(`/api/bookings/${booking.id}/return`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actualReturnDate })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process return');
+      }
+
+      const data = await response.json();
+      alert(`Return processed successfully! ${data.isLateReturn ? `Late fee: ₱${data.lateFeeAmount}` : 'No late fees'}`);
+      
+      // Refresh data without page reload
+      if (onRefresh) {
+        await onRefresh();
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error processing return:', error);
+      alert('Failed to process return. Please try again.');
+    } finally {
+      setIsProcessingReturn(false);
+    }
+  };
+
+  const handleProcessRefund = async () => {
+    if (!booking.actualReturnDate) {
+      alert('Cannot process refund before costume is returned');
+      return;
+    }
+
+    if (booking.securityDepositRefunded) {
+      alert('Security deposit has already been refunded');
+      return;
+    }
+
+    if (!confirm(`Process refund of ₱${estimatedRefund}?`)) {
+      return;
+    }
+
+    setIsProcessingRefund(true);
+    try {
+      const response = await fetch(`/api/bookings/${booking.id}/refund`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notes: `Refund processed via admin panel. Late fee: ₱${currentLateFee}`
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process refund');
+      }
+
+      const data = await response.json();
+      alert(`Refund processed successfully! Amount: ₱${data.refundAmount}`);
+      
+      // Refresh data without page reload
+      if (onRefresh) {
+        await onRefresh();
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error processing refund:', error);
+      alert('Failed to process refund. Please try again.');
+    } finally {
+      setIsProcessingRefund(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -207,9 +312,130 @@ export function OrderDetailModal({
                   <DollarSign className="h-4 w-4 text-gray-400" />
                   <div>
                     <p className="font-medium text-lg text-primary">₱{booking.totalPrice}</p>
-                    <p className="text-sm text-gray-600">Total Amount</p>
+                    <p className="text-sm text-gray-600">Rental Fee</p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Security Deposit & Late Fees */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Security Deposit Card */}
+            <Card className="border-2 border-green-200 bg-green-50/50">
+              <CardHeader>
+                <CardTitle className="flex items-center text-green-800">
+                  <Shield className="h-5 w-5 mr-2" />
+                  Security Deposit
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Deposit Amount:</span>
+                  <span className="font-bold text-lg text-green-700">₱{booking.securityDeposit || 1000}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Status:</span>
+                  <Badge className={booking.securityDepositRefunded ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}>
+                    {booking.securityDepositRefunded ? 'Refunded' : 'Held'}
+                  </Badge>
+                </div>
+                {booking.securityDepositRefunded && booking.refundAmount && (
+                  <>
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <span className="text-sm text-gray-600">Refund Amount:</span>
+                      <span className="font-medium text-blue-700">₱{booking.refundAmount}</span>
+                    </div>
+                    {booking.refundProcessedAt && (
+                      <div className="text-xs text-gray-500">
+                        Processed: {formatDisplayDate(booking.refundProcessedAt)}
+                      </div>
+                    )}
+                  </>
+                )}
+                {!booking.securityDepositRefunded && booking.actualReturnDate && (
+                  <div className="pt-3 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">Estimated Refund:</span>
+                      <span className="font-medium text-green-700">₱{estimatedRefund}</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      onClick={handleProcessRefund}
+                      disabled={isProcessingRefund}
+                    >
+                      <Banknote className="h-4 w-4 mr-2" />
+                      {isProcessingRefund ? 'Processing...' : 'Process Refund'}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Late Return Fee Card */}
+            <Card className={`border-2 ${isCurrentlyLate || currentLateFee > 0 ? 'border-red-200 bg-red-50/50' : 'border-gray-200'}`}>
+              <CardHeader>
+                <CardTitle className={`flex items-center ${isCurrentlyLate || currentLateFee > 0 ? 'text-red-800' : 'text-gray-800'}`}>
+                  <AlertCircle className="h-5 w-5 mr-2" />
+                  Late Return Fees
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Fee Per Hour:</span>
+                  <span className="font-medium">₱{booking.lateReturnFeePerHour || 30}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Pickup Window:</span>
+                  <span className="font-medium">{booking.pickupTimeStart || '08:00'} - {booking.pickupTimeEnd || '10:00'}</span>
+                </div>
+                {(isCurrentlyLate || hoursLate > 0) && (
+                  <>
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <span className="text-sm text-gray-600">Hours Late:</span>
+                      <span className={`font-bold ${isCurrentlyLate ? 'text-red-600' : 'text-gray-700'}`}>{hoursLate}h</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Late Fee:</span>
+                      <span className={`font-bold text-lg ${isCurrentlyLate ? 'text-red-600' : 'text-gray-700'}`}>₱{currentLateFee}</span>
+                    </div>
+                  </>
+                )}
+                {isCurrentlyLate && (
+                  <div className="bg-red-100 border border-red-300 rounded-lg p-3">
+                    <p className="text-sm text-red-800 font-medium">⚠️ Currently Overdue</p>
+                    <p className="text-xs text-red-700 mt-1">Fees are accumulating</p>
+                  </div>
+                )}
+                {!booking.actualReturnDate && booking.status === 'confirmed' && (
+                  <div className="pt-3 border-t">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Return Date & Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={actualReturnDate}
+                      onChange={(e) => setActualReturnDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent mb-2"
+                    />
+                    <Button 
+                      size="sm" 
+                      className="w-full"
+                      onClick={handleProcessReturn}
+                      disabled={isProcessingReturn}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      {isProcessingReturn ? 'Processing...' : 'Process Return'}
+                    </Button>
+                  </div>
+                )}
+                {booking.actualReturnDate && (
+                  <div className="pt-2 border-t">
+                    <span className="text-sm text-gray-600">Returned:</span>
+                    <p className="font-medium">{formatDisplayDate(booking.actualReturnDate)}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -266,14 +492,24 @@ export function OrderDetailModal({
           {/* Actions */}
           <div className="flex items-center justify-between pt-6 border-t">
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.location.href = `mailto:${booking.customerEmail}`}
+              >
                 <MessageCircle className="h-4 w-4 mr-2" />
                 Contact Customer
               </Button>
-              <Button variant="outline" size="sm">
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Order
-              </Button>
+              {onEdit && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={onEdit}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Order
+                </Button>
+              )}
             </div>
             <Button variant="outline" onClick={onClose}>
               Close

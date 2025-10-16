@@ -79,9 +79,20 @@ interface DbBooking {
   start_date: string;
   end_date: string;
   total_price: number;
+  security_deposit: number;
+  late_return_fee_per_hour: number;
+  actual_return_date?: string;
+  late_fee_amount: number;
+  security_deposit_refunded: boolean;
+  pickup_time_start: string;
+  pickup_time_end: string;
+  refund_amount?: number;
+  refund_notes?: string;
+  refund_processed_at?: string;
   status: string;
   special_requests?: string;
   created_at: string;
+  booking_reference?: string;
 }
 
 function transformBooking(dbBooking: DbBooking) {
@@ -94,9 +105,20 @@ function transformBooking(dbBooking: DbBooking) {
     startDate: new Date(dbBooking.start_date),
     endDate: new Date(dbBooking.end_date),
     totalPrice: Number(dbBooking.total_price),
-    status: dbBooking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled',
+    securityDeposit: Number(dbBooking.security_deposit),
+    lateReturnFeePerHour: Number(dbBooking.late_return_fee_per_hour),
+    actualReturnDate: dbBooking.actual_return_date ? new Date(dbBooking.actual_return_date) : undefined,
+    lateFeeAmount: Number(dbBooking.late_fee_amount),
+    securityDepositRefunded: dbBooking.security_deposit_refunded,
+    pickupTimeStart: dbBooking.pickup_time_start,
+    pickupTimeEnd: dbBooking.pickup_time_end,
+    refundAmount: dbBooking.refund_amount ? Number(dbBooking.refund_amount) : undefined,
+    refundNotes: dbBooking.refund_notes,
+    refundProcessedAt: dbBooking.refund_processed_at ? new Date(dbBooking.refund_processed_at) : undefined,
+    status: dbBooking.status as 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'expired',
     specialRequests: dbBooking.special_requests,
     createdAt: new Date(dbBooking.created_at),
+    bookingReference: dbBooking.booking_reference,
   };
 }
 
@@ -205,6 +227,13 @@ export async function POST(request: NextRequest) {
         start_date: body.startDate,
         end_date: body.endDate,
         total_price: body.totalPrice,
+        security_deposit: 1000.00, // ₱1000 per costume
+        late_return_fee_per_hour: 30.00, // ₱30 per hour (can be adjusted to ₱50)
+        actual_return_date: null,
+        late_fee_amount: 0.00,
+        security_deposit_refunded: false,
+        pickup_time_start: '08:00:00', // 8:00 AM
+        pickup_time_end: '10:00:00', // 10:00 AM
         status: 'pending',
         special_requests: body.specialRequests || null,
         blocked_until: blockedUntil.toISOString(),

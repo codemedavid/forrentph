@@ -7,6 +7,19 @@ ADD COLUMN IF NOT EXISTS blocked_until TIMESTAMP WITH TIME ZONE,
 ADD COLUMN IF NOT EXISTS messenger_opened BOOLEAN DEFAULT false,
 ADD COLUMN IF NOT EXISTS booking_reference TEXT UNIQUE;
 
+-- Add security deposit and late return fee columns
+ALTER TABLE bookings 
+ADD COLUMN IF NOT EXISTS security_deposit NUMERIC(10, 2) DEFAULT 1000.00,
+ADD COLUMN IF NOT EXISTS late_return_fee_per_hour NUMERIC(10, 2) DEFAULT 30.00,
+ADD COLUMN IF NOT EXISTS actual_return_date TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS late_fee_amount NUMERIC(10, 2) DEFAULT 0.00,
+ADD COLUMN IF NOT EXISTS security_deposit_refunded BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS pickup_time_start TIME DEFAULT '08:00:00',
+ADD COLUMN IF NOT EXISTS pickup_time_end TIME DEFAULT '10:00:00',
+ADD COLUMN IF NOT EXISTS refund_amount NUMERIC(10, 2),
+ADD COLUMN IF NOT EXISTS refund_notes TEXT,
+ADD COLUMN IF NOT EXISTS refund_processed_at TIMESTAMP WITH TIME ZONE;
+
 -- Create index for efficient blocking queries
 CREATE INDEX IF NOT EXISTS bookings_blocked_until_idx ON bookings(blocked_until) 
 WHERE status = 'pending' AND blocked_until IS NOT NULL;
@@ -75,4 +88,11 @@ COMMENT ON TABLE bookings IS 'Stores all costume rental bookings with 10-minute 
 COMMENT ON COLUMN bookings.blocked_until IS 'Timestamp when the temporary 10-minute block expires (for pending bookings)';
 COMMENT ON COLUMN bookings.messenger_opened IS 'Whether the customer opened Messenger link';
 COMMENT ON COLUMN bookings.booking_reference IS 'Unique reference code for this booking (e.g., BOOK-123456)';
+COMMENT ON COLUMN bookings.security_deposit IS 'Security deposit amount (₱1000 per costume)';
+COMMENT ON COLUMN bookings.late_return_fee_per_hour IS 'Late return fee per hour (₱30-50)';
+COMMENT ON COLUMN bookings.actual_return_date IS 'Actual return date/time when costume was returned';
+COMMENT ON COLUMN bookings.late_fee_amount IS 'Total late return fee calculated';
+COMMENT ON COLUMN bookings.security_deposit_refunded IS 'Whether security deposit has been refunded';
+COMMENT ON COLUMN bookings.pickup_time_start IS 'Pickup window start time (8:00 AM)';
+COMMENT ON COLUMN bookings.pickup_time_end IS 'Pickup window end time (10:00 AM)';
 

@@ -11,8 +11,9 @@ export function formatDate(date: Date): string {
   return format(date, 'yyyy-MM-dd');
 }
 
-export function formatDisplayDate(date: Date): string {
-  return format(date, 'MMM dd, yyyy');
+export function formatDisplayDate(date: Date | string): string {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  return format(dateObj, 'MMM dd, yyyy');
 }
 
 export function getDateRange(startDate: Date, endDate: Date): Date[] {
@@ -58,7 +59,39 @@ export function calculatePrice(costume: Costume, startDate: Date, endDate: Date,
   }
 }
 
-export function getDurationLabel(startDate: Date, endDate: Date, duration?: string): string {
+// Security deposit calculation - ₱1000 per costume
+export function calculateSecurityDeposit(): number {
+  return 1000.00;
+}
+
+// Late return fee calculation - ₱30-50 per hour
+export function calculateLateReturnFee(actualReturnDate: Date, expectedReturnDate: Date, feePerHour: number = 30): number {
+  const diffInMs = actualReturnDate.getTime() - expectedReturnDate.getTime();
+  const diffInHours = Math.ceil(diffInMs / (1000 * 60 * 60));
+  
+  if (diffInHours <= 0) {
+    return 0;
+  }
+  
+  return diffInHours * feePerHour;
+}
+
+// Calculate total booking amount including security deposit
+export function calculateTotalBookingAmount(rentalPrice: number, securityDeposit: number = 1000): number {
+  return rentalPrice + securityDeposit;
+}
+
+// Check if return is late based on pickup window (8-10 AM)
+export function isReturnLate(actualReturnDate: Date, expectedReturnDate: Date): boolean {
+  // Set pickup window to 8-10 AM on the return date
+  const returnDate = new Date(expectedReturnDate);
+  const pickupWindowStart = new Date(returnDate);
+  pickupWindowStart.setHours(8, 0, 0, 0); // 8:00 AM
+  
+  return actualReturnDate > pickupWindowStart;
+}
+
+export function getDurationLabel(startDate: Date | string, endDate: Date | string, duration?: string): string {
   // If duration is explicitly provided, use that for label
   if (duration) {
     switch (duration) {
@@ -75,8 +108,12 @@ export function getDurationLabel(startDate: Date, endDate: Date, duration?: stri
     }
   }
   
+  // Convert strings to Date objects if needed
+  const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
+  const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
+  
   // Legacy calculation based on date difference (for backward compatibility)
-  const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   
   if (days === 1) {
     return '1 Day';
