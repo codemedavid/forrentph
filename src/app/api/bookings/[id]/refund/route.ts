@@ -4,9 +4,10 @@ import { supabase } from '@/lib/supabase';
 // PATCH /api/bookings/[id]/refund - Process security deposit refund
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { refundAmount, notes } = body;
 
@@ -14,7 +15,7 @@ export async function PATCH(
     const { data: booking, error: fetchError } = await supabase
       .from('bookings')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (fetchError || !booking) {
@@ -52,7 +53,7 @@ export async function PATCH(
         refund_notes: notes || null,
         refund_processed_at: new Date().toISOString()
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -82,13 +83,14 @@ export async function PATCH(
 // GET /api/bookings/[id]/refund - Get refund status
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { data: booking, error } = await supabase
       .from('bookings')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error || !booking) {

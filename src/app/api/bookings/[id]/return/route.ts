@@ -5,9 +5,10 @@ import { calculateLateReturnFee, isReturnLate } from '@/lib/utils';
 // PATCH /api/bookings/[id]/return - Mark costume as returned and calculate fees
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { actualReturnDate } = await request.json();
     
     if (!actualReturnDate) {
@@ -23,7 +24,7 @@ export async function PATCH(
     const { data: booking, error: fetchError } = await supabase
       .from('bookings')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (fetchError || !booking) {
@@ -53,7 +54,7 @@ export async function PATCH(
         late_fee_amount: lateFeeAmount,
         status: 'completed'
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -86,13 +87,14 @@ export async function PATCH(
 // GET /api/bookings/[id]/return - Get return status and fees
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { data: booking, error } = await supabase
       .from('bookings')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error || !booking) {
