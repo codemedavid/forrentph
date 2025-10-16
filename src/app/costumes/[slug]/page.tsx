@@ -1,263 +1,148 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { costumes as mockCostumes, categories as mockCategories, bookings, pricingTiers } from '@/data/costumes';
-import { Calendar, Star, CheckCircle, XCircle, DollarSign } from 'lucide-react';
-import { formatDisplayDate, calculatePrice, getDurationLabel, checkAvailability, getAvailableDates, getSeasonalRentalRules, isRentalDurationAllowed } from '@/lib/utils';
-import { Costume, Category, DateAvailability } from '@/types';
+import { notFound } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import { costumes as mockCostumes, categories as mockCategories } from '@/data/costumes';
+import { Costume, Category } from '@/types';
+import { CostumeDetailClient } from '@/components/costume-detail-client';
 
-export default function CostumeDetailPage() {
-  const params = useParams();
-  const slug = params.slug as string;
-  
-  const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
-  const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
-  const [selectedDuration, setSelectedDuration] = useState<string>('1d');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [availability, setAvailability] = useState<DateAvailability[]>([]);
-  const [costume, setCostume] = useState<Costume | null>(null);
-  const [category, setCategory] = useState<Category | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [blockedDates, setBlockedDates] = useState<string[]>([]);
-  const [seasonalRules, setSeasonalRules] = useState<ReturnType<typeof getSeasonalRentalRules> | null>(null);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+// Enable ISR - revalidate every hour
+export const revalidate = 3600;
 
-  // Fetch costume from API
-  useEffect(() => {
-    fetchCostume();
-  }, [slug]);
+interface DbCostume {
+  id: string;
+  name: string;
+  description: string;
+  category_id: string;
+  images: string[];
+  price_per_day: number;
+  price_per_12_hours: number;
+  price_per_week: number;
+  size: string;
+  difficulty: string;
+  setup_time: number;
+  features: string[];
+  is_available: boolean;
+  slug: string;
+}
 
-  const fetchCostume = async () => {
-    setIsLoading(true);
-    try {
-      console.log('🔄 Fetching costume with slug:', slug);
-      
-      // Try to fetch from API first using slug-specific endpoint
-      const response = await fetch(`/api/costumes/slug/${slug}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Costume found:', data.costume);
-        setCostume(data.costume);
-        
-        // Fetch category
-        if (data.costume.categoryId) {
-          const categoryResponse = await fetch('/api/categories');
-          if (categoryResponse.ok) {
-            const categoryData = await categoryResponse.json();
-            const categories = categoryData.categories || [];
-            const foundCategory = categories.find((cat: Category) => cat.id === data.costume.categoryId);
-            setCategory(foundCategory || null);
-          }
-        }
-      } else if (response.status === 404) {
-        console.log('⚠️ Costume not found in database, trying mock data');
-        // Fallback to mock data
-        const mockCostume = mockCostumes.find(c => c.slug === slug);
-        if (mockCostume) {
-          setCostume(mockCostume);
-          const mockCategory = mockCategories.find(cat => cat.id === mockCostume.categoryId);
-          setCategory(mockCategory || null);
-        }
-      } else {
-        throw new Error('Failed to fetch costume');
-      }
-    } catch (error) {
-      console.error('❌ Error fetching costume:', error);
-      // Fallback to mock data
-      const mockCostume = mockCostumes.find(c => c.slug === slug);
-      if (mockCostume) {
-        console.log('Using mock data for:', slug);
-        setCostume(mockCostume);
-        const mockCategory = mockCategories.find(cat => cat.id === mockCostume.categoryId);
-        setCategory(mockCategory || null);
-      } else {
-        console.error('Costume not found in mock data either');
-      }
-    } finally {
-      setIsLoading(false);
-    }
+// Transform database snake_case to frontend camelCase
+function transformCostume(dbCostume: DbCostume): Costume {
+  return {
+    id: dbCostume.id,
+    name: dbCostume.name,
+    description: dbCostume.description,
+    categoryId: dbCostume.category_id,
+    images: dbCostume.images || [],
+    pricePerDay: Number(dbCostume.price_per_day),
+    pricePer12Hours: Number(dbCostume.price_per_12_hours),
+    pricePerWeek: Number(dbCostume.price_per_week),
+    size: dbCostume.size as Costume['size'],
+    difficulty: dbCostume.difficulty as Costume['difficulty'],
+    setupTime: dbCostume.setup_time,
+    features: dbCostume.features || [],
+    isAvailable: dbCostume.is_available,
+    slug: dbCostume.slug,
   };
+}
 
-  useEffect(() => {
-    if (costume) {
-      const availableDates = getAvailableDates(costume.id, bookings, 3);
-      setAvailability(availableDates);
-      
-      // Fetch blocked dates from Supabase
-      fetchBlockedDates();
-    }
-  }, [costume, currentMonth]);
-
-  const fetchBlockedDates = async () => {
-    if (!costume) return;
+// Generate static params for all costumes (SSG)
+export async function generateStaticParams() {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
-    try {
-      const year = currentMonth.getFullYear();
-      const month = currentMonth.getMonth() + 1;
-      
-      const response = await fetch(
-        `/api/availability?costumeId=${costume.id}&year=${year}&month=${month}`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        const blocked = data.blockedDates?.map((bd: { blocked_date: string }) => bd.blocked_date) || [];
-        setBlockedDates(blocked);
-      }
-    } catch (error) {
-      console.error('Error fetching blocked dates:', error);
-      // Continue without blocked dates if API fails
+    if (!supabaseUrl || !supabaseKey) {
+      // Use mock data
+      return mockCostumes.map((costume) => ({
+        slug: costume.slug,
+      }));
     }
-  };
 
-  // Update seasonal rules when start date changes
-  useEffect(() => {
-    if (selectedStartDate) {
-      const rules = getSeasonalRentalRules(selectedStartDate);
-      setSeasonalRules(rules);
-      
-      // Auto-select first allowed duration if current selection is not allowed
-      if (!rules.allowedDurations.includes(selectedDuration)) {
-        setSelectedDuration(rules.allowedDurations[0]);
-      }
-    }
-  }, [selectedStartDate]);
-
-  useEffect(() => {
-    if (selectedStartDate && selectedDuration) {
-      const endDate = new Date(selectedStartDate);
-      const duration = selectedDuration;
-      
-      switch (duration) {
-        case '12h':
-          endDate.setHours(endDate.getHours() + 12);
-          break;
-        case '1d':
-          endDate.setDate(endDate.getDate() + 1);
-          break;
-        case '3d':
-          endDate.setDate(endDate.getDate() + 3);
-          break;
-        case '1w':
-          endDate.setDate(endDate.getDate() + 7);
-          break;
-      }
-      
-      setSelectedEndDate(endDate);
-    }
-  }, [selectedStartDate, selectedDuration]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading costume details...</p>
-        </div>
-      </div>
-    );
+    const { data } = await supabase
+      .from('costumes')
+      .select('slug');
+ 
+    return data?.map((costume) => ({
+      slug: costume.slug,
+    })) || mockCostumes.map((costume) => ({
+      slug: costume.slug,
+    }));
+  } catch (error) {
+    console.error('Error generating static params:', error);
+    return mockCostumes.map((costume) => ({
+      slug: costume.slug,
+    }));
   }
+}
 
+async function fetchCostume(slug: string): Promise<Costume | null> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return mockCostumes.find(c => c.slug === slug) || null;
+    }
+
+    const { data, error } = await supabase
+      .from('costumes')
+      .select('*')
+      .eq('slug', slug)
+      .single();
+
+    if (error || !data) {
+      return mockCostumes.find(c => c.slug === slug) || null;
+    }
+
+    return transformCostume(data);
+  } catch (error) {
+    console.error('Error fetching costume:', error);
+    return mockCostumes.find(c => c.slug === slug) || null;
+  }
+}
+
+async function fetchCategory(categoryId: string): Promise<Category | null> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return mockCategories.find(cat => cat.id === categoryId) || null;
+    }
+
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('id', categoryId)
+      .single();
+
+    if (error || !data) {
+      return mockCategories.find(cat => cat.id === categoryId) || null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error fetching category:', error);
+    return mockCategories.find(cat => cat.id === categoryId) || null;
+  }
+}
+
+export default async function CostumeDetailPage({
+  params,
+}: {
+  params: { slug: string };
+}) {
+  const { slug } = params;
+  
+  // Fetch costume data on server
+  const costume = await fetchCostume(slug);
+  
   if (!costume) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Costume Not Found</h1>
-          <p className="text-gray-600 mb-8">The costume you&apos;re looking for doesn&apos;t exist.</p>
-          <Button asChild>
-            <Link href="/costumes">Browse All Costumes</Link>
-          </Button>
-        </div>
-      </div>
-    );
+    notFound();
   }
-
-  const totalPrice = selectedStartDate && selectedEndDate ? calculatePrice(costume, selectedStartDate, selectedEndDate, selectedDuration) : 0;
-  const durationLabel = selectedStartDate && selectedEndDate ? getDurationLabel(selectedStartDate, selectedEndDate, selectedDuration) : '';
   
-  // Check both booking availability and admin blocks
-  const isAvailable = selectedStartDate && selectedEndDate ? (() => {
-    // First check bookings
-    const bookingAvailable = checkAvailability(costume.id, selectedStartDate, selectedEndDate, bookings).isAvailable;
-    if (!bookingAvailable) return false;
-    
-    // Then check admin blocks
-    const startDate = new Date(selectedStartDate);
-    const endDate = new Date(selectedEndDate);
-    
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
-      if (blockedDates.includes(dateStr)) {
-        return false;
-      }
-    }
-    
-    return true;
-  })() : false;
-
-  const generateCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const days = [];
-    
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
-    
-    // Add days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      const dateStr = date.toISOString().split('T')[0];
-      const dayAvailability = availability.find(a => a.date === dateStr);
-      const isBlockedByAdmin = blockedDates.includes(dateStr);
-      
-      days.push({
-        date,
-        day,
-        isAvailable: (dayAvailability?.isAvailable ?? true) && !isBlockedByAdmin,
-        isPast: date < new Date(new Date().setHours(0, 0, 0, 0)),
-        isSelected: selectedStartDate && date.toDateString() === selectedStartDate.toDateString()
-      });
-    }
-    
-    return days;
-  };
-
-  const handleDateSelect = (date: Date) => {
-    if (date < new Date(new Date().setHours(0, 0, 0, 0))) return;
-    
-    const dateStr = date.toISOString().split('T')[0];
-    const dayAvailability = availability.find(a => a.date === dateStr);
-    const isBlockedByAdmin = blockedDates.includes(dateStr);
-    
-    // Only allow selection if available AND not blocked by admin
-    if (dayAvailability?.isAvailable && !isBlockedByAdmin) {
-      setSelectedStartDate(date);
-    }
-  };
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    setCurrentMonth(prev => {
-      const newMonth = new Date(prev);
-      if (direction === 'prev') {
-        newMonth.setMonth(prev.getMonth() - 1);
-      } else {
-        newMonth.setMonth(prev.getMonth() + 1);
-      }
-      return newMonth;
-    });
-  };
+  // Fetch category data on server
+  const category = await fetchCategory(costume.categoryId);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -275,335 +160,8 @@ export default function CostumeDetailPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Costume Details */}
-          <div className="space-y-6">
-            {/* Main Costume Image */}
-            <div className="aspect-square bg-gradient-to-br from-primary/20 to-primary/5 rounded-lg overflow-hidden">
-              {costume.images && costume.images.length > 0 && costume.images[0] !== '/images/costumes/placeholder.jpg' ? (
-                <img
-                  src={costume.images[selectedImageIndex]}
-                  alt={`${costume.name} - Image ${selectedImageIndex + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-32 h-32 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-6xl">🎭</span>
-                    </div>
-                    <p className="text-gray-500">Costume Image</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Image Thumbnails (if multiple images) */}
-            {costume.images && costume.images.length > 1 && costume.images[0] !== '/images/costumes/placeholder.jpg' && (
-              <div className="grid grid-cols-4 gap-2">
-                {costume.images.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImageIndex(index)}
-                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                      selectedImageIndex === index 
-                        ? 'border-primary shadow-lg scale-105' 
-                        : 'border-gray-200 hover:border-primary/50'
-                    }`}
-                  >
-                    <img
-                      src={image}
-                      alt={`${costume.name} thumbnail ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Costume Info */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-2xl">{costume.name}</CardTitle>
-                    <CardDescription className="text-lg">
-                      {category?.name}
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Star className="h-5 w-5 text-yellow-400 fill-current" />
-                    <span className="text-lg font-semibold">4.8</span>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-gray-600">{costume.description}</p>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Size:</span>
-                    <p className="text-gray-600">{costume.size}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Difficulty:</span>
-                    <p className="text-gray-600">{costume.difficulty}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Setup Time:</span>
-                    <p className="text-gray-600">{costume.setupTime} minutes</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-700">Availability:</span>
-                    <p className="text-green-600 flex items-center">
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Available
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-sm font-medium text-gray-700">Features:</span>
-                  <ul className="list-disc list-inside text-gray-600 mt-1">
-                    {costume.features.map((feature, index) => (
-                      <li key={index}>{feature}</li>
-                    ))}
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Booking Section */}
-          <div className="space-y-6">
-            {/* Seasonal Information Banner */}
-            {seasonalRules && (
-              <Card className={seasonalRules.season === 'peak' ? 'border-orange-200 bg-orange-50' : 'border-blue-200 bg-blue-50'}>
-                <CardContent className="p-4">
-                  <div className="flex items-start space-x-2">
-                    <div className="flex-shrink-0">
-                      {seasonalRules.season === 'peak' ? '🎃' : '📅'}
-                    </div>
-                    <div>
-                      <h4 className={`font-semibold ${seasonalRules.season === 'peak' ? 'text-orange-900' : 'text-blue-900'}`}>
-                        {seasonalRules.season === 'peak' ? 'Peak Season Rental' : 'Regular Season Rental'}
-                      </h4>
-                      <p className={`text-sm ${seasonalRules.season === 'peak' ? 'text-orange-800' : 'text-blue-800'}`}>
-                        {seasonalRules.description}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-   {/* Calendar */}
-   <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Calendar className="h-5 w-5 mr-2" />
-                  Select Dates
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Month Navigation */}
-                  <div className="flex items-center justify-between">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigateMonth('prev')}
-                    >
-                      ←
-                    </Button>
-                    <h3 className="text-lg font-semibold">
-                      {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                    </h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigateMonth('next')}
-                    >
-                      →
-                    </Button>
-                  </div>
-
-                  {/* Calendar Grid */}
-                  <div className="grid grid-cols-7 gap-1">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                      <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
-                        {day}
-                      </div>
-                    ))}
-                    {generateCalendarDays().map((day, index) => (
-                      <div
-                        key={index}
-                        className={`p-2 text-center text-sm cursor-pointer rounded ${
-                          !day
-                            ? ''
-                            : day.isPast
-                            ? 'text-gray-300 cursor-not-allowed'
-                            : !day.isAvailable
-                            ? 'text-red-400 cursor-not-allowed bg-red-50'
-                            : day.isSelected
-                            ? 'bg-primary text-white'
-                            : 'hover:bg-gray-100'
-                        }`}
-                        onClick={() => day && handleDateSelect(day.date)}
-                      >
-                        {day?.day}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Legend */}
-                  <div className="flex items-center justify-center space-x-4 text-xs">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 bg-primary rounded mr-1"></div>
-                      <span>Selected</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 bg-red-50 border border-red-200 rounded mr-1"></div>
-                      <span>Unavailable</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            {/* Pricing Tiers */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <DollarSign className="h-5 w-5 mr-2" />
-                  Pricing Options
-                </CardTitle>
-                <CardDescription>
-                  {selectedStartDate && seasonalRules 
-                    ? `Available for ${seasonalRules.season === 'peak' ? 'peak' : 'regular'} season`
-                    : 'Select a date to see available options'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  {pricingTiers.map((tier) => {
-                    const isAllowed = selectedStartDate ? isRentalDurationAllowed(selectedStartDate, tier.duration) : true;
-                    const isDisabled = selectedStartDate && !isAllowed;
-                    
-                    // Get actual price from database for each duration
-                    const getActualPrice = () => {
-                      switch (tier.duration) {
-                        case '12h':
-                          return costume.pricePer12Hours || costume.pricePerDay * 0.6;
-                        case '1d':
-                          return costume.pricePerDay;
-                        case '3d':
-                          return costume.pricePerDay * 3 * 0.9; // 10% discount for 3-day
-                        case '1w':
-                          return costume.pricePerWeek;
-                        default:
-                          return costume.pricePerDay;
-                      }
-                    };
-                    
-                    return (
-                      <div
-                        key={tier.duration}
-                        className={`p-4 border rounded-lg transition-colors ${
-                          isDisabled
-                            ? 'opacity-40 cursor-not-allowed border-gray-200 bg-gray-50'
-                            : selectedDuration === tier.duration
-                            ? 'border-primary bg-primary/5 cursor-pointer'
-                            : 'border-gray-200 hover:border-gray-300 cursor-pointer'
-                        }`}
-                        onClick={() => !isDisabled && setSelectedDuration(tier.duration)}
-                        title={isDisabled ? 'Not available for selected date' : ''}
-                      >
-                        <div className="text-center">
-                          <div className="font-semibold">{tier.label}</div>
-                          <div className="text-2xl font-bold text-primary">
-                            ₱{Math.round(getActualPrice())}
-                          </div>
-                          {isDisabled && (
-                            <div className="text-xs text-gray-500 mt-1">Not available</div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {!selectedStartDate && (
-                  <p className="text-sm text-gray-500 mt-4 text-center">
-                    Please select a start date to see available rental durations
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-         
-
-            {/* Booking Summary */}
-            {selectedStartDate && selectedEndDate && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Booking Summary</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span>Costume:</span>
-                    <span className="font-medium">{costume.name}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Duration:</span>
-                    <span className="font-medium">{durationLabel}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Start Date:</span>
-                    <span className="font-medium">{formatDisplayDate(selectedStartDate)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>End Date:</span>
-                    <span className="font-medium">{formatDisplayDate(selectedEndDate)}</span>
-                  </div>
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between text-lg font-bold">
-                      <span>Total:</span>
-                      <span className="text-primary">₱{totalPrice}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {isAvailable ? (
-                      <div className="flex items-center text-green-600">
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        <span>Available for selected dates</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center text-red-600">
-                        <XCircle className="h-4 w-4 mr-2" />
-                        <span>Not available for selected dates</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <Button 
-                    className="w-full" 
-                    size="lg"
-                    disabled={!isAvailable}
-                    asChild={isAvailable}
-                  >
-                    {isAvailable ? (
-                      <Link href={`/booking?costumeId=${costume.id}&startDate=${selectedStartDate.toISOString()}&endDate=${selectedEndDate.toISOString()}`}>
-                        Book Now
-                      </Link>
-                    ) : (
-                      <span>Select Available Dates</span>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
+        {/* Client component for all interactive booking features */}
+        <CostumeDetailClient costume={costume} category={category} />
       </div>
     </div>
   );
