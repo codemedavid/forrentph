@@ -16,7 +16,7 @@ export interface Costume {
   pricePerDay: number;
   pricePer12Hours: number;
   pricePerWeek: number;
-  size: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | 'One Size';
+  size: string; // Can be standard size or custom measurements (e.g., "M" or "Chest: 100cm, Waist: 85cm")
   difficulty: 'Easy' | 'Medium' | 'Hard';
   setupTime: number; // in minutes
   features: string[];

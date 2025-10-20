@@ -12,6 +12,8 @@ import {
 import { Costume, Category } from '@/types';
 import { categories as mockCategories } from '@/data/costumes';
 import { ImageUpload } from './image-upload';
+import { SizeInputSection } from './size-input-section';
+import { SizingData, sizingDataToString, parseToSizingData } from '@/types/measurements';
 
 interface CostumeFormModalProps {
   costume?: Costume;
@@ -34,7 +36,10 @@ export function CostumeFormModal({
     pricePerDay: 0,
     pricePer12Hours: 0,
     pricePerWeek: 0,
-    size: 'M' as Costume['size'],
+    sizingData: {
+      type: 'standard',
+      standardSize: 'M'
+    } as SizingData,
     difficulty: 'Easy' as Costume['difficulty'],
     setupTime: 10,
     features: [''] as string[],
@@ -81,7 +86,7 @@ export function CostumeFormModal({
         pricePerDay: costume.pricePerDay,
         pricePer12Hours: costume.pricePer12Hours,
         pricePerWeek: costume.pricePerWeek,
-        size: costume.size,
+        sizingData: parseToSizingData(costume.size),
         difficulty: costume.difficulty,
         setupTime: costume.setupTime,
         features: costume.features,
@@ -97,7 +102,10 @@ export function CostumeFormModal({
         pricePerDay: 0,
         pricePer12Hours: 0,
         pricePerWeek: 0,
-        size: 'M',
+        sizingData: {
+          type: 'standard',
+          standardSize: 'M'
+        },
         difficulty: 'Easy',
         setupTime: 10,
         features: [''],
@@ -187,8 +195,12 @@ export function CostumeFormModal({
     // Filter out empty features
     const features = formData.features.filter(feature => feature.trim() !== '');
 
+    // Convert sizing data to string for backward compatibility
+    const size = sizingDataToString(formData.sizingData);
+
     const costumeData = {
       ...formData,
+      size, // Convert sizingData to size string
       slug,
       features,
       images: formData.images.length > 0 ? formData.images : ['/images/costumes/placeholder.jpg']
@@ -444,34 +456,20 @@ export function CostumeFormModal({
               </CardContent>
             </Card>
 
+            {/* Size & Measurements */}
+            <SizeInputSection
+              value={formData.sizingData}
+              onChange={(sizingData) => setFormData(prev => ({ ...prev, sizingData }))}
+            />
+
             {/* Specifications */}
             <Card>
               <CardHeader>
-                <CardTitle>Specifications</CardTitle>
-                <CardDescription>Physical and technical details</CardDescription>
+                <CardTitle>Additional Details</CardTitle>
+                <CardDescription>Setup and difficulty information</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Size *
-                    </label>
-                    <select
-                      name="size"
-                      required
-                      value={formData.size}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
-                    >
-                      <option value="XS">XS</option>
-                      <option value="S">S</option>
-                      <option value="M">M</option>
-                      <option value="L">L</option>
-                      <option value="XL">XL</option>
-                      <option value="XXL">XXL</option>
-                      <option value="One Size">One Size</option>
-                    </select>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Difficulty *

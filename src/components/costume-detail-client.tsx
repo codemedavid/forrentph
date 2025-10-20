@@ -238,7 +238,7 @@ export function CostumeDetailClient({ costume, category }: CostumeDetailClientPr
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-gray-600">{costume.description}</p>
+            <p className="text-gray-600 whitespace-pre-line">{costume.description}</p>
             
             <div className="grid grid-cols-2 gap-4">
               <div>

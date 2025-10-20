@@ -13,6 +13,12 @@ interface CostumesClientViewProps {
   initialCategories: Category[];
 }
 
+// Helper function to truncate text
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength).trim() + '...';
+}
+
 export function CostumesClientView({ initialCostumes, initialCategories }: CostumesClientViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -50,8 +56,8 @@ export function CostumesClientView({ initialCostumes, initialCategories }: Costu
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Filters Sidebar */}
-        <div className="lg:w-64 space-y-6">
+        {/* Filters Sidebar - Hidden on mobile */}
+        <div className="hidden lg:block lg:w-64 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -245,9 +251,9 @@ function CostumeCard({ costume, categories }: { costume: Costume; categories: Ca
             {costume.name}
           </CardTitle>
           
-          {/* Hide description on mobile, show on tablet+ */}
-          <CardDescription className="hidden sm:block text-gray-600 mb-4 line-clamp-2 text-sm lg:text-base">
-            {costume.description}
+          {/* Description with character limit - hidden on mobile, show on tablet+ */}
+          <CardDescription className="hidden sm:block text-gray-600 mb-4 text-sm lg:text-base">
+            {truncateText(costume.description, 100)}
           </CardDescription>
           
           {/* Hide setup time and size on mobile */}

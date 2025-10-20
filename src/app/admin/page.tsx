@@ -215,6 +215,39 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDeleteCostume = async (costumeId: string, costumeName: string) => {
+    try {
+      // Check for active bookings
+      const activeBookings = bookings.filter(
+        b => b.costumeId === costumeId && 
+        (b.status === 'pending' || b.status === 'confirmed')
+      );
+      
+      if (activeBookings.length > 0) {
+        const confirmMessage = `⚠️ WARNING: "${costumeName}" has ${activeBookings.length} active booking(s).\n\nDeleting this costume will also delete these bookings.\n\nAre you sure you want to proceed?`;
+        if (!confirm(confirmMessage)) {
+          return;
+        }
+      }
+
+      const response = await fetch(`/api/costumes/${costumeId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete costume');
+      }
+
+      // Refresh data without page reload
+      await fetchData();
+      
+      alert('Costume deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting costume:', error);
+      alert('Failed to delete costume. Please try again.');
+    }
+  };
+
   const handleCostumeSave = async (costumeData: Omit<Costume, 'id'>) => {
     try {
       const url = selectedCostume 
@@ -671,7 +704,16 @@ export default function AdminDashboard() {
                               <Edit className="h-4 w-4 mr-1" />
                               Edit
                             </Button>
-                            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to delete "${costume.name}"?`)) {
+                                  handleDeleteCostume(costume.id, costume.name);
+                                }
+                              }}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
