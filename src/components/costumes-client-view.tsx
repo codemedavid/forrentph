@@ -264,7 +264,7 @@ function CostumeCard({ costume, categories }: { costume: Costume; categories: Ca
             </div>
             <div className="flex items-center text-sm text-gray-600">
               <span className="mr-2">Size:</span>
-              <span className="bg-gray-100 px-2 py-1 rounded text-xs">{costume.size}</span>
+              <span className="bg-gray-100 px-2 py-1 rounded text-xs font-bold">{costume.size}</span>
             </div>
           </div>
           

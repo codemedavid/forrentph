@@ -130,19 +130,19 @@ export default function CostumeDetailPage() {
                 <div className="space-y-3 pt-4 border-t">
                   <div className="flex justify-between">
                     <span className="text-sm font-medium text-gray-700">Size:</span>
-                    <Badge variant="secondary">{costume.size}</Badge>
+                    <Badge variant="secondary" className="font-bold">{costume.size}</Badge>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm font-medium text-gray-700">Difficulty:</span>
-                    <Badge variant="secondary">{costume.difficulty}</Badge>
+                    <Badge variant="secondary" className="font-bold">{costume.difficulty}</Badge>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm font-medium text-gray-700">Setup Time:</span>
-                    <span className="text-sm">{costume.setupTime} minutes</span>
+                    <span className="text-sm font-bold">{costume.setupTime} minutes</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm font-medium text-gray-700">Status:</span>
-                    <Badge className={costume.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                    <Badge className={costume.isAvailable ? 'bg-green-100 text-green-800 font-bold' : 'bg-red-100 text-red-800 font-bold'}>
                       {costume.isAvailable ? 'Available' : 'Unavailable'}
                     </Badge>
                   </div>

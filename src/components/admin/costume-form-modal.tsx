@@ -37,8 +37,10 @@ export function CostumeFormModal({
     pricePer12Hours: 0,
     pricePerWeek: 0,
     sizingData: {
-      type: 'standard',
-      standardSize: 'M'
+      type: 'custom',
+      unit: 'ft',
+      customValueMin: '',
+      customValueMax: undefined
     } as SizingData,
     difficulty: 'Easy' as Costume['difficulty'],
     setupTime: 10,
@@ -103,8 +105,10 @@ export function CostumeFormModal({
         pricePer12Hours: 0,
         pricePerWeek: 0,
         sizingData: {
-          type: 'standard',
-          standardSize: 'M'
+          type: 'custom',
+          unit: 'ft',
+          customValueMin: '',
+          customValueMax: undefined
         },
         difficulty: 'Easy',
         setupTime: 10,
@@ -133,6 +137,16 @@ export function CostumeFormModal({
 
   const addFeature = () => {
     setFormData(prev => ({ ...prev, features: [...prev.features, ''] }));
+  };
+
+  const addCommonFeature = (featureName: string) => {
+    // Check if feature already exists
+    if (!formData.features.includes(featureName)) {
+      setFormData(prev => ({ 
+        ...prev, 
+        features: [...prev.features.filter(f => f.trim() !== ''), featureName] 
+      }));
+    }
   };
 
   const removeFeature = (index: number) => {
@@ -511,36 +525,101 @@ export function CostumeFormModal({
                 <CardDescription>List the key features of this costume</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {formData.features.map((feature, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={feature}
-                      onChange={(e) => handleFeatureChange(index, e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
-                      placeholder="Enter a feature"
-                    />
-                    {formData.features.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removeFeature(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                {/* Fast Add Common Features */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quick Add Common Features
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addCommonFeature('Airblower Fan')}
+                      className="text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Airblower Fan
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addCommonFeature('Battery Case')}
+                      className="text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Battery Case
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addCommonFeature('LED Lights')}
+                      className="text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      LED Lights
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addCommonFeature('Sound Effects')}
+                      className="text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Sound Effects
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addCommonFeature('Remote Control')}
+                      className="text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Remote Control
+                    </Button>
                   </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addFeature}
-                  className="w-full"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Feature
-                </Button>
+                </div>
+
+                {/* Feature List */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Current Features
+                  </label>
+                  {formData.features.map((feature, index) => (
+                    <div key={index} className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={feature}
+                        onChange={(e) => handleFeatureChange(index, e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent"
+                        placeholder="Enter a feature"
+                      />
+                      {formData.features.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removeFeature(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addFeature}
+                    className="w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Custom Feature
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 

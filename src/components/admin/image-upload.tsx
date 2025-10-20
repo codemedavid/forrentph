@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
@@ -21,12 +22,20 @@ export function ImageUpload({
   const [images, setImages] = useState<string[]>(currentImages);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
+  const [failedImages, setFailedImages] = useState<Record<number, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync images state when currentImages prop changes (e.g., when editing different costumes)
   useEffect(() => {
     console.log('🖼️ ImageUpload: currentImages changed:', currentImages);
-    setImages(currentImages);
+    // Filter out any undefined/null/empty strings
+    const validImages = currentImages.filter(img => img && img.trim() !== '');
+    setImages(validImages);
+    // Reset loading and failed states
+    setLoadingStates({});
+    setFailedImages({});
+    setError(null);
   }, [currentImages]);
 
   const uploadImage = async (file: File): Promise<string | null> => {
@@ -89,6 +98,8 @@ export function ImageUpload({
     }
 
     const updatedImages = [...images, ...newImages];
+    console.log('📸 New images added:', newImages);
+    console.log('📋 Total images now:', updatedImages);
     setImages(updatedImages);
     onImagesChange(updatedImages);
     setUploading(false);
@@ -101,32 +112,34 @@ export function ImageUpload({
 
   const removeImage = async (imageUrl: string, index: number) => {
     try {
-      // Extract public ID from Cloudinary URL
-      // URL format: https://res.cloudinary.com/cloud_name/image/upload/v1234567/folder/filename.jpg
-      const urlParts = imageUrl.split('/');
-      const uploadIndex = urlParts.indexOf('upload');
-      if (uploadIndex !== -1 && uploadIndex + 2 < urlParts.length) {
-        // Get everything after 'upload/v1234567/'
-        const pathParts = urlParts.slice(uploadIndex + 2);
-        const publicId = pathParts.join('/').replace(/\.[^/.]+$/, ''); // Remove file extension
+      console.log('🗑️ Removing image at index:', index, 'URL:', imageUrl);
+      
+      // Only try to delete from Cloudinary if it's a Cloudinary URL
+      if (imageUrl.includes('cloudinary.com')) {
+        const urlParts = imageUrl.split('/');
+        const uploadIndex = urlParts.indexOf('upload');
+        if (uploadIndex !== -1 && uploadIndex + 2 < urlParts.length) {
+          const pathParts = urlParts.slice(uploadIndex + 2);
+          const publicId = pathParts.join('/').replace(/\.[^/.]+$/, '');
 
-        // Delete from Cloudinary via API
-        try {
-          await fetch(`/api/upload?publicId=${encodeURIComponent(publicId)}`, {
-            method: 'DELETE'
-          });
-        } catch (deleteError) {
-          console.error('Error deleting from Cloudinary:', deleteError);
-          // Continue even if delete fails - remove from UI
+          try {
+            await fetch(`/api/upload?publicId=${encodeURIComponent(publicId)}`, {
+              method: 'DELETE'
+            });
+            console.log('✅ Deleted from Cloudinary:', publicId);
+          } catch (deleteError) {
+            console.error('⚠️ Error deleting from Cloudinary:', deleteError);
+          }
         }
       }
 
       // Remove from state
       const updatedImages = images.filter((_, i) => i !== index);
+      console.log('📝 Updated images:', updatedImages);
       setImages(updatedImages);
       onImagesChange(updatedImages);
     } catch (err) {
-      console.error('Error removing image:', err);
+      console.error('❌ Error removing image:', err);
       setError('Failed to remove image');
     }
   };
@@ -226,33 +239,47 @@ export function ImageUpload({
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {images.map((imageUrl, index) => (
             <div
-              key={index}
-              className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-primary transition-colors"
+              key={`${imageUrl}-${index}`}
+              className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-primary transition-colors bg-white"
             >
-              <img
-                src={imageUrl}
-                alt={`Costume image ${index + 1}`}
-                className="w-full h-full object-cover"
-                onLoad={() => {
-                  console.log('✅ Image loaded successfully:', imageUrl);
-                }}
-                onError={(e) => {
-                  console.error('❌ Image failed to load:', imageUrl);
-                  const target = e.target as HTMLImageElement;
-                  // Show a better placeholder with the image URL for debugging
-                  target.src = `data:image/svg+xml;base64,${btoa(`
-                    <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
-                      <rect width="200" height="200" fill="#f3f4f6"/>
-                      <text x="50%" y="45%" font-family="Arial" font-size="12" fill="#6b7280" text-anchor="middle" dy=".3em">Image not found</text>
-                      <text x="50%" y="55%" font-family="Arial" font-size="10" fill="#9ca3af" text-anchor="middle" dy=".3em">${imageUrl.length > 30 ? imageUrl.substring(0, 30) + '...' : imageUrl}</text>
-                    </svg>
-                  `)}`;
-                }}
-              />
+              {/* Loading indicator */}
+              {loadingStates[index] && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
+                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                </div>
+              )}
+
+              {/* Image or Failed Placeholder */}
+              {!failedImages[index] ? (
+                <img
+                  src={imageUrl}
+                  alt={`Costume image ${index + 1}`}
+                  className="w-full h-full object-cover absolute inset-0"
+                  onLoad={() => {
+                    setLoadingStates(prev => ({ ...prev, [index]: false }));
+                    setFailedImages(prev => ({ ...prev, [index]: false }));
+                    console.log('✅ Image loaded successfully:', imageUrl);
+                  }}
+                  onError={(e) => {
+                    setLoadingStates(prev => ({ ...prev, [index]: false }));
+                    setFailedImages(prev => ({ ...prev, [index]: true }));
+                    console.error('❌ Image failed to load:', imageUrl);
+                  }}
+                />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 text-gray-400">
+                  <ImageIcon className="w-12 h-12 mb-2" />
+                  <p className="text-xs font-medium">Image not found</p>
+                  <p className="text-xs px-2 text-center mt-1 text-gray-500">
+                    {imageUrl.split('/').pop()?.substring(0, 20) || 'Image'}
+                  </p>
+                </div>
+              )}
               
-              {/* Overlay with remove button */}
+              {/* Remove button overlay */}
               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
                 <Button
+                  type="button"
                   variant="destructive"
                   size="icon"
                   className="opacity-0 group-hover:opacity-100 transition-opacity"
@@ -267,7 +294,7 @@ export function ImageUpload({
 
               {/* Primary badge */}
               {index === 0 && (
-                <div className="absolute top-2 left-2">
+                <div className="absolute top-2 left-2 z-20">
                   <Badge className="bg-primary text-white text-xs">
                     Primary
                   </Badge>
