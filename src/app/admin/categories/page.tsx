@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AdminLayout } from '@/components/admin/admin-layout';
 import { CategoryFormModal } from '@/components/admin/category-form-modal';
-import { Plus, Edit, Trash2, Image as ImageIcon, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, Package, ArrowUp, ArrowDown } from 'lucide-react';
 import { Category } from '@/types';
 
 export default function CategoriesManagementPage() {
@@ -26,7 +26,11 @@ export default function CategoriesManagementPage() {
       const response = await fetch('/api/categories');
       if (response.ok) {
         const data = await response.json();
-        setCategories(data.categories || []);
+        // Sort by display_order
+        const sorted = (data.categories || []).sort((a: Category, b: Category) => 
+          (a.display_order || 0) - (b.display_order || 0)
+        );
+        setCategories(sorted);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -93,6 +97,52 @@ export default function CategoriesManagementPage() {
     }
   };
 
+  const handleMoveUp = async (index: number) => {
+    if (index === 0) return; // Already at top
+
+    const newCategories = [...categories];
+    const temp = newCategories[index];
+    newCategories[index] = newCategories[index - 1];
+    newCategories[index - 1] = temp;
+
+    // Update display_order for both categories
+    await updateCategoryOrder(newCategories);
+  };
+
+  const handleMoveDown = async (index: number) => {
+    if (index === categories.length - 1) return; // Already at bottom
+
+    const newCategories = [...categories];
+    const temp = newCategories[index];
+    newCategories[index] = newCategories[index + 1];
+    newCategories[index + 1] = temp;
+
+    // Update display_order for both categories
+    await updateCategoryOrder(newCategories);
+  };
+
+  const updateCategoryOrder = async (orderedCategories: Category[]) => {
+    try {
+      // Update display_order for each category
+      const updates = orderedCategories.map((category, index) => 
+        fetch(`/api/categories/${category.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...category,
+            display_order: index + 1
+          })
+        })
+      );
+
+      await Promise.all(updates);
+      await fetchCategories(); // Refresh the list
+    } catch (error) {
+      console.error('Error updating category order:', error);
+      alert('Failed to update category order. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -149,7 +199,7 @@ export default function CategoriesManagementPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {categories.map((category) => (
+            {categories.map((category, index) => (
               <Card key={category.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 {/* Category Image */}
                 <div className="relative h-48 bg-gray-100">
@@ -166,6 +216,15 @@ export default function CategoriesManagementPage() {
                       <ImageIcon className="h-16 w-16 text-gray-300" />
                     </div>
                   )}
+                  
+                  {/* Order Badge */}
+                  <div className="absolute top-2 left-2">
+                    <Badge className="bg-black/70 text-white font-bold">
+                      #{index + 1}
+                    </Badge>
+                  </div>
+
+                  {/* Action Buttons */}
                   <div className="absolute top-2 right-2 flex gap-2">
                     <Button
                       size="sm"
@@ -188,12 +247,40 @@ export default function CategoriesManagementPage() {
 
                 {/* Category Info */}
                 <CardContent className="p-4">
-                  <h3 className="font-semibold text-lg text-gray-900 mb-2">
-                    {category.name}
-                  </h3>
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-semibold text-lg text-gray-900 flex-1">
+                      {category.icon} {category.name}
+                    </h3>
+                    
+                    {/* Reorder Buttons */}
+                    <div className="flex flex-col gap-1 ml-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0"
+                        onClick={() => handleMoveUp(index)}
+                        disabled={index === 0}
+                        title="Move up"
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0"
+                        onClick={() => handleMoveDown(index)}
+                        disabled={index === categories.length - 1}
+                        title="Move down"
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
                   <p className="text-sm text-gray-600 line-clamp-2 mb-3">
                     {category.description || 'No description'}
                   </p>
+                  
                   <div className="flex items-center justify-between">
                     <Badge variant="secondary" className="text-xs">
                       {category.slug}

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AdminLayout } from '@/components/admin/admin-layout';
+import { CarouselManagement } from '@/components/admin/carousel-management';
 import { Save, RefreshCw, Info, Plus, Trash2 } from 'lucide-react';
 import { 
   AboutHero, 
@@ -19,7 +20,7 @@ import {
 } from '@/types';
 
 export default function AdminSettingsPage() {
-  const [activeTab, setActiveTab] = useState<'header-branding' | 'about-hero' | 'about-story' | 'about-stats' | 'about-values' | 'why-choose-us' | 'home-why-choose-us' | 'about-cta'>('header-branding');
+  const [activeTab, setActiveTab] = useState<'header-branding' | 'carousel' | 'about-hero' | 'about-story' | 'about-stats' | 'about-values' | 'why-choose-us' | 'home-why-choose-us' | 'about-cta'>('header-branding');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
@@ -187,6 +188,7 @@ export default function AdminSettingsPage() {
           <nav className="flex space-x-4 overflow-x-auto">
             {[
               { id: 'header-branding', label: '🎯 Header Branding' },
+              { id: 'carousel', label: '🎠 Hero Carousel' },
               { id: 'about-hero', label: 'About Hero' },
               { id: 'about-story', label: 'Our Story' },
               { id: 'about-stats', label: 'Statistics' },
@@ -209,6 +211,11 @@ export default function AdminSettingsPage() {
             ))}
           </nav>
         </div>
+
+        {/* Carousel Management Tab */}
+        {activeTab === 'carousel' && (
+          <CarouselManagement />
+        )}
 
         {/* Header Branding Tab */}
         {activeTab === 'header-branding' && (

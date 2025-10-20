@@ -5,6 +5,7 @@ export interface Category {
   image: string;
   icon: string; // Emoji or icon character
   slug: string;
+  display_order: number; // Order to display in catalog (lower numbers first)
 }
 
 export interface Costume {

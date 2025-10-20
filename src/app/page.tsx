@@ -7,9 +7,17 @@ import { categories as mockCategories, costumes as mockCostumes } from '@/data/c
 import { ArrowRight, Star, Clock, Users, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Category, Costume } from '@/types';
+import { HeroCarousel } from '@/components/hero-carousel';
+import { fetchCarouselSlides } from '@/lib/carousel';
 
 // Enable ISR - revalidate every hour
 export const revalidate = 3600;
+
+// Helper function to truncate text
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength).trim() + '...';
+}
 
 interface DbCostume {
   id: string;
@@ -110,9 +118,10 @@ async function fetchCostumes(): Promise<Costume[]> {
 }
 
 export default async function Home() {
-  const [categories, costumes] = await Promise.all([
+  const [categories, costumes, carouselSlides] = await Promise.all([
     fetchCategories(),
-    fetchCostumes()
+    fetchCostumes(),
+    fetchCarouselSlides()
   ]);
   
   // Find the inflatable category by slug instead of hardcoded ID
@@ -123,36 +132,8 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary/5 via-background to-accent/5 py-12 md:py-20 overflow-hidden">
-        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="text-center">
-            <Badge variant="secondary" className="mb-4">
-              <Sparkles className="w-3 h-3 mr-1" />
-              Premium Costume Rentals
-            </Badge>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 leading-tight">
-              <span className="block">Rent Instagramable</span>
-              <span className="text-primary block bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-                Costumes
-              </span>
-            </h1>
-            <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto leading-relaxed">
-             From T-Rex dinosaurs to Disney and more. We have a wide variety of inflatable costumes to make 
-             your next event unforgettable. Budget friendly and quality costumes.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button size="lg" className="text-lg px-6 sm:px-8 py-3 shadow-lg w-full sm:w-auto">
-                <Link href="/costumes" className="w-full text-center">Browse Costumes</Link>
-              </Button>
-              <Button variant="outline" size="lg" className="text-lg px-6 sm:px-8 py-3 w-full sm:w-auto">
-                <Link href="/categories" className="w-full text-center">View Categories</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Hero Carousel */}
+      <HeroCarousel slides={carouselSlides} />
 
       {/* Categories Section */}
       <section className="py-16 bg-gradient-to-b from-background to-muted/20">
@@ -305,9 +286,9 @@ export default async function Home() {
                     <CardTitle className="text-sm sm:text-base lg:text-lg mb-2 group-hover:text-primary transition-colors line-clamp-2">
                       {costume.name}
                     </CardTitle>
-                    {/* Hide description on mobile, show on tablet+ */}
-                    <CardDescription className="hidden sm:block text-muted-foreground mb-4 line-clamp-2 text-sm lg:text-base">
-                      {costume.description}
+                    {/* Hide description on mobile, show on tablet+ with 80 char limit */}
+                    <CardDescription className="hidden sm:block text-muted-foreground mb-4 text-sm lg:text-base">
+                      {truncateText(costume.description, 80)}
                     </CardDescription>
                     <div className="flex items-center justify-between mt-3 sm:mt-0">
                       <div>
