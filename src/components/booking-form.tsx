@@ -23,7 +23,6 @@ interface BookingFormProps {
     bookingReference: string;
   }) => void;
 }
-
 export function BookingForm({ costume, startDate, endDate, totalPrice, onBookingComplete }: BookingFormProps) {
   const [formData, setFormData] = useState({
     customerName: '',
